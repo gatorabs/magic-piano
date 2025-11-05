@@ -1,5 +1,5 @@
 import sys
-from multiprocessing import Manager, Process
+from multiprocessing import Manager
 
 from src.application.usecases.data_receiver_multiprocess import data_receiver_process
 from src.infrastructure.constants.controls_constants import (
@@ -8,18 +8,17 @@ from src.infrastructure.constants.controls_constants import (
     RECEIVER_STOP,
 )
 from src.infrastructure.logging.Logger import Logger
-from src.infrastructure.services.system_initializator_service import (
-    SystemInitializatorService,
-)
+from src.infrastructure.services.process_manager import ProcessManager
+from src.infrastructure.services.system_initializer import SystemInitializer
 
 
 def main() -> int:
     logger = Logger("Main", verbose=True)
-    system_initializator = SystemInitializatorService(logger)
-    args = system_initializator.parse_args()
+    system_initializer = SystemInitializer(logger)
+    args = system_initializer.parse_args()
 
     if args.list:
-        ports = system_initializator.list_ports()
+        ports = system_initializer.list_ports()
         if not ports:
             print("Nenhuma porta serial encontrada.")
         else:
@@ -28,7 +27,7 @@ def main() -> int:
                 print(f" - {port}")
         return 0
 
-    port = system_initializator.choose_port(args.port)
+    port = system_initializer.choose_port(args.port)
     if port is None:
         return 1
 
@@ -38,23 +37,30 @@ def main() -> int:
     shared_controls[RECEIVER_BAUD] = args.baud
     shared_controls[RECEIVER_STOP] = False
 
-    receiver = Process(target=data_receiver_process, args=(shared_controls,), daemon=True)
-    receiver.start()
+    process_manager = ProcessManager(logger)
+    receiver_name = "data_receiver"
+    process_manager.register(
+        name=receiver_name,
+        target=data_receiver_process,
+        args=(shared_controls,),
+        daemon=True,
+    )
+    process_manager.start_all()
     logger.info(
         f"Processo de recepção iniciado na porta {port} a {args.baud} bps. Pressione Ctrl+C para encerrar."
     )
 
     try:
-        receiver.join()
+        process_manager.join(receiver_name)
     except KeyboardInterrupt:
         logger.info("Encerrando recepção...")
         shared_controls[RECEIVER_STOP] = True
-        receiver.join(timeout=2.0)
+        process_manager.join(receiver_name, timeout=2.0)
     finally:
-        if receiver.is_alive():
+        if process_manager.is_alive(receiver_name):
             logger.warning("Processo não finalizou a tempo. Forçando encerramento.")
-            receiver.terminate()
-            receiver.join()
+            process_manager.terminate(receiver_name)
+            process_manager.join(receiver_name)
 
     logger.info("Aplicação finalizada.")
     return 0

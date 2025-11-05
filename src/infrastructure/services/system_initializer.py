@@ -5,7 +5,7 @@ from src.infrastructure.adapters.serial.serial_communicator import SerialCommuni
 from src.infrastructure.logging.Logger import Logger
 
 
-class SystemInitializatorService:
+class SystemInitializer:
     def __init__(self, logger: Logger) -> None:
         self._logger = logger
 
