@@ -1,4 +1,8 @@
-from src.infrastructure.constants.controls_constants import RECEIVER_COM
+from src.infrastructure.constants.controls_constants import (
+    RECEIVER_BAUD,
+    RECEIVER_COM,
+    RECEIVER_STOP,
+)
 from src.infrastructure.logging.Logger import Logger
 from collections import deque
 from src.infrastructure.adapters.serial.serial_communicator import SerialCommunicator
@@ -14,7 +18,7 @@ from src.infrastructure.adapters.serial.piano_decoder import (
 def data_receiver_process(shared_controls):
     logger = Logger("SerialReceiver", verbose=True)
     current_com = shared_controls.get(RECEIVER_COM)
-    baud = shared_controls.get("RECEIVER_BAUD", 1_000_000)
+    baud = shared_controls.get(RECEIVER_BAUD, 115_200)
 
     comm = SerialCommunicator(
         com_port=current_com,
@@ -89,8 +93,8 @@ def data_receiver_process(shared_controls):
             # ex.: events_bus.publish("piano.key", {"id": key_id, "pressed": bool(pressed)})
 
     def should_stop():
-        # você pode ligar isso a um flag no shared_controls se quiser
-        return False
+        # permite que o processo seja sinalizado externamente (ex.: Ctrl+C na main)
+        return bool(shared_controls.get(RECEIVER_STOP, False))
 
     try:
         comm.receive_loop(on_byte=on_byte, should_stop=should_stop)

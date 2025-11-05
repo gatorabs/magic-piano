@@ -49,8 +49,21 @@ class SerialCommunicator:
         self.serial_port = serial.Serial(
             self.com_port,
             self.baud_rate,
-            timeout=self.read_timeout
+            timeout=self.read_timeout,
+            write_timeout=0,
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
         )
+        # Garantimos que o PySerial não tente decodificar caracteres ASCII e
+        # trabalhe byte a byte, como o firmware envia (Serial.write(&evt, 1)).
+        if hasattr(self.serial_port, "encoding"):
+            self.serial_port.encoding = "latin-1"
+        # Descarta quaisquer bytes residuais da porta antes de iniciar o loop.
+        if hasattr(self.serial_port, "reset_input_buffer"):
+            self.serial_port.reset_input_buffer()
+        if hasattr(self.serial_port, "reset_output_buffer"):
+            self.serial_port.reset_output_buffer()
         # Pequeno intervalo para estabilizar a CDC/USB (ms, não segundos)
         time.sleep(0.05)
         self._opened = True
