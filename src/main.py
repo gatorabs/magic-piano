@@ -7,6 +7,8 @@ from src.infrastructure.constants.controls_constants import (
     RECEIVER_COM,
     RECEIVER_STOP,
 )
+from src.infrastructure.adapters.serial.piano_decoder import make_empty_state
+from src.infrastructure.adapters.web_server import start_flask_server
 from src.infrastructure.logging.Logger import Logger
 from src.infrastructure.services.process_manager import ProcessManager
 from src.infrastructure.services.system_initializer import SystemInitializer
@@ -37,14 +39,27 @@ def main() -> int:
     shared_controls[RECEIVER_BAUD] = args.baud
     shared_controls[RECEIVER_STOP] = False
 
+    shared_frames = manager.dict()
+    for key_id, pressed in enumerate(make_empty_state()):
+        shared_frames[key_id] = bool(pressed)
+
     process_manager = ProcessManager(logger)
     receiver_name = "data_receiver"
     process_manager.register(
         name=receiver_name,
         target=data_receiver_process,
-        args=(shared_controls,),
+        args=(shared_controls, shared_frames),
         daemon=True,
     )
+
+    web_name = "web_server"
+    process_manager.register(
+        name=web_name,
+        target=start_flask_server,
+        args=(shared_frames, shared_controls),
+        daemon=True,
+    )
+
     process_manager.start_all()
     logger.info(
         f"Processo de recepção iniciado na porta {port} a {args.baud} bps. Pressione Ctrl+C para encerrar."
@@ -61,6 +76,11 @@ def main() -> int:
             logger.warning("Processo não finalizou a tempo. Forçando encerramento.")
             process_manager.terminate(receiver_name)
             process_manager.join(receiver_name)
+
+        if process_manager.is_alive(web_name):
+            logger.info("Encerrando servidor web...")
+            process_manager.terminate(web_name)
+            process_manager.join(web_name)
 
     logger.info("Aplicação finalizada.")
     return 0

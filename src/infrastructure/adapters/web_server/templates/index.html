@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Monitoramento das Teclas</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 2rem;
+        background-color: #f3f3f3;
+      }
+
+      h1 {
+        margin-bottom: 0.5rem;
+      }
+
+      .metadata {
+        margin-bottom: 1.5rem;
+        color: #555;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        max-width: 600px;
+        background-color: #fff;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      th,
+      td {
+        padding: 0.5rem 0.75rem;
+        border-bottom: 1px solid #ddd;
+        text-align: left;
+      }
+
+      th {
+        background-color: #efefef;
+      }
+
+      .pressed {
+        color: #0d6efd;
+        font-weight: bold;
+      }
+
+      .released {
+        color: #888;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Piano digital - Teclas</h1>
+    <div class="metadata">
+      Porta atual: <strong>{{ serial_port or 'desconhecida' }}</strong> | Baud:
+      <strong>{{ serial_baud or 'n/d' }}</strong>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Tecla</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="keys-table-body">
+        {% for key in keys %}
+        <tr data-key-id="{{ key.id }}">
+          <td>#{{ '%02d' | format(key.id) }}</td>
+          <td class="status">
+            <span class="{{ 'pressed' if key.pressed else 'released' }}">
+              {{ 'Pressionada' if key.pressed else 'Liberada' }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <script>
+      const tableBody = document.getElementById("keys-table-body");
+
+      function updateRow(key) {
+        const row = tableBody.querySelector(`[data-key-id="${key.id}"]`);
+        if (!row) {
+          return;
+        }
+
+        const statusCell = row.querySelector(".status span");
+        if (!statusCell) {
+          return;
+        }
+
+        if (key.pressed) {
+          statusCell.textContent = "Pressionada";
+          statusCell.className = "pressed";
+        } else {
+          statusCell.textContent = "Liberada";
+          statusCell.className = "released";
+        }
+      }
+
+      async function fetchKeys() {
+        try {
+          const response = await fetch("/api/keys");
+          if (!response.ok) {
+            return;
+          }
+          const data = await response.json();
+          if (!data.keys) {
+            return;
+          }
+          data.keys.forEach(updateRow);
+        } catch (err) {
+          console.error("Falha ao atualizar teclas", err);
+        }
+      }
+
+      setInterval(fetchKeys, 500);
+    </script>
+  </body>
+</html>
