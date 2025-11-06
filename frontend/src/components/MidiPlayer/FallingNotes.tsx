@@ -13,6 +13,8 @@ const isBlackKey = (midi: number): boolean => {
   return [1, 3, 6, 8, 10].includes(noteInOctave);
 };
 
+const FALL_AREA_HEIGHT_PX = 256; // h-64 ≈ 16rem -> 256px with 1rem = 16px
+
 export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotesProps) => {
   // Only show notes within lookAheadTime
   const safeLookAhead = Math.max(lookAheadTime, 0.001);
@@ -32,26 +34,26 @@ export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotes
   return (
     <div className="relative w-full max-w-5xl mx-auto h-64 bg-gradient-to-b from-background/50 to-transparent overflow-hidden border-b-4 border-primary">
       {visibleNotes.map((note) => {
-        const noteEndTime = note.time + note.duration;
-
         // Calculate vertical position (0 = bottom, 1 = top)
         const timeUntilNote = note.time - currentTime;
         const clampedTimeUntil = Math.min(
           Math.max(timeUntilNote, 0),
           safeLookAhead
         );
-        const bottomPosition = (clampedTimeUntil / safeLookAhead) * 100;
-
         const baseHeight = Math.max(20, note.duration * 50);
-        let heightPx = baseHeight;
+        const heightPercent = (baseHeight / FALL_AREA_HEIGHT_PX) * 100;
 
-        if (currentTime >= note.time) {
-          const remainingDuration = Math.max(noteEndTime - currentTime, 0);
+        let bottomPosition: number;
 
-          heightPx =
-            remainingDuration > 0
-              ? Math.max(4, Math.min(baseHeight, remainingDuration * 50))
-              : 0;
+        if (currentTime < note.time) {
+          bottomPosition = (clampedTimeUntil / safeLookAhead) * 100;
+        } else {
+          const elapsedSinceStart = Math.max(currentTime - note.time, 0);
+          const progress = Math.min(
+            elapsedSinceStart / Math.max(note.duration, 0.01),
+            1
+          );
+          bottomPosition = -progress * heightPercent;
         }
 
         // Calculate horizontal position based on MIDI note
@@ -79,7 +81,7 @@ export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotes
               left: `${leftPercent}%`,
               width: `${(isBlack ? BLACK_KEY_WIDTH_RATIO : 1) * whiteKeyWidth}%`,
               transform: isBlack ? "translateX(-50%)" : undefined,
-              height: `${heightPx}px`,
+              height: `${baseHeight}px`,
               boxShadow: note.active ? "0 0 10px currentColor" : "none",
             }}
           />
