@@ -99,11 +99,8 @@ def data_receiver_process(shared_controls, frames_dict):
 
             frames_dict[key_id] = bool(pressed)
 
-            # >>> AQUI você pode despachar para seu domínio:
-            # ex.: events_bus.publish("piano.key", {"id": key_id, "pressed": bool(pressed)})
-
     def should_stop():
-        # permite que o processo seja sinalizado externamente (ex.: Ctrl+C na main)
+        # permite que o processo seja sinalizado externamente
         return bool(shared_controls.get(RECEIVER_STOP, False))
 
     try:
