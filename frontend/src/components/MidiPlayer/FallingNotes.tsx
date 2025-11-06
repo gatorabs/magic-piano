@@ -1,5 +1,6 @@
 import { GameNote } from "@/types/midi";
 import { cn } from "@/lib/utils";
+import { BLACK_KEY_WIDTH_RATIO } from "@/constants/piano";
 
 interface FallingNotesProps {
   notes: GameNote[];
@@ -23,7 +24,6 @@ export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotes
     .map((_, index) => index)
     .filter((index) => !isBlackKey(index)).length;
   const whiteKeyWidth = 100 / whiteKeyCount;
-  const blackKeyWidth = whiteKeyWidth * 0.9;
 
   return (
     <div className="relative w-full max-w-5xl mx-auto h-64 bg-gradient-to-b from-background/50 to-transparent overflow-hidden border-b-4 border-primary">
@@ -56,7 +56,7 @@ export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotes
             style={{
               bottom: `${bottomPosition}%`,
               left: `${leftPercent}%`,
-              width: `${isBlack ? blackKeyWidth : whiteKeyWidth}%`,
+              width: `${(isBlack ? BLACK_KEY_WIDTH_RATIO : 1) * whiteKeyWidth}%`,
               transform: isBlack ? "translateX(-50%)" : undefined,
               height: `${Math.max(20, note.duration * 50)}px`,
               boxShadow: note.active ? "0 0 10px currentColor" : "none",

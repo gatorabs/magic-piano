@@ -1,5 +1,6 @@
 import { PianoKey } from "./PianoKey";
 import { KeyState } from "@/types/midi";
+import { BLACK_KEY_WIDTH_RATIO } from "@/constants/piano";
 
 interface PianoProps {
   keys: KeyState[];
@@ -22,7 +23,6 @@ export const Piano = ({ keys, expectedKeys, correctKeys, missedKeys }: PianoProp
   const whiteKeys = sortedKeys.filter((k) => !isBlackKey(k.id));
   const whiteKeyCount = Math.max(whiteKeys.length, 1);
   const whiteKeyWidth = 100 / whiteKeyCount;
-  const blackKeyWidth = whiteKeyWidth * 0.9;
 
   return (
     <div className="relative w-full max-w-5xl mx-auto">
@@ -55,9 +55,10 @@ export const Piano = ({ keys, expectedKeys, correctKeys, missedKeys }: PianoProp
           return (
             <div
               key={key.id}
-              className="absolute"
+              className="absolute flex justify-center"
               style={{
                 left: `${(whiteKeysBeforeThis + 0.5) * whiteKeyWidth}%`,
+                width: `${whiteKeyWidth}%`,
                 transform: "translateX(-50%)",
               }}
             >
@@ -68,7 +69,9 @@ export const Piano = ({ keys, expectedKeys, correctKeys, missedKeys }: PianoProp
                 isExpected={expectedKeys?.has(key.id)}
                 isCorrect={correctKeys?.has(key.id)}
                 isMissed={missedKeys?.has(key.id)}
-                style={{ width: `${blackKeyWidth}%` }}
+                style={{
+                  width: `${BLACK_KEY_WIDTH_RATIO * 100}%`,
+                }}
               />
             </div>
           );
