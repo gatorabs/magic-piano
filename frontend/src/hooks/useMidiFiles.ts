@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-
-const BACKEND_URL = "http://192.168.15.12:5000";
+import { BACKEND_URL } from "@/config/backend";
 
 export interface MidiFile {
   name: string;

@@ -1,19 +1,99 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MidiFile, useMidiFiles } from "@/hooks/useMidiFiles";
+import { usePlayers } from "@/hooks/usePlayers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Music, Play, Loader2, AlertCircle } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ArrowLeft, Music, Play, Loader2, AlertCircle, Trophy } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
+import { BACKEND_URL } from "@/config/backend";
 
 const MidiSelection = () => {
   const navigate = useNavigate();
   const { data: midiFiles = [], isLoading, isError } = useMidiFiles();
+  const {
+    data: playersData,
+    isLoading: isPlayersLoading,
+    isError: isPlayersError,
+  } = usePlayers();
   const [playerName, setPlayerName] = useState("");
   const [selectedMidi, setSelectedMidi] = useState<MidiFile | null>(null);
+  const [openSongs, setOpenSongs] = useState<string[]>([]);
+
+  const songRankings = useMemo(() => {
+    if (!playersData?.players?.length) {
+      return [] as Array<{
+        title: string;
+        entries: { name: string; score: number }[];
+        bestScore: number;
+      }>;
+    }
+
+    const songsMap = new Map<string, Map<string, number>>();
+
+    for (const player of playersData.players) {
+      const playerNameValue = player.name?.trim() || "Jogador desconhecido";
+
+      for (const song of player.songs ?? []) {
+        const title = String(song.title ?? "").trim() || "Música desconhecida";
+        const numericScore = Number(song.score);
+        const score = Number.isFinite(numericScore) ? numericScore : 0;
+
+        if (!songsMap.has(title)) {
+          songsMap.set(title, new Map());
+        }
+
+        const playerScores = songsMap.get(title)!;
+        const current = playerScores.get(playerNameValue);
+
+        if (current === undefined || score > current) {
+          playerScores.set(playerNameValue, score);
+        }
+      }
+    }
+
+    const rankings = Array.from(songsMap.entries()).map(([title, playerScores]) => {
+      const entries = Array.from(playerScores.entries())
+        .map(([name, score]) => ({ name, score }))
+        .sort((a, b) => b.score - a.score);
+
+      return {
+        title,
+        entries,
+        bestScore: entries[0]?.score ?? 0,
+      };
+    });
+
+    return rankings
+      .filter((ranking) => ranking.entries.length > 0)
+      .sort(
+        (a, b) =>
+          b.bestScore - a.bestScore ||
+          a.title.localeCompare(b.title, "pt-BR", { sensitivity: "base" })
+      );
+  }, [playersData]);
+
+  const hasRankingData = songRankings.length > 0;
+
+  useEffect(() => {
+    if (!songRankings.length) {
+      setOpenSongs([]);
+      return;
+    }
+
+    setOpenSongs((prev) => {
+      const visibleTitles = songRankings.map((ranking) => ranking.title);
+      const preserved = prev.filter((title) => visibleTitles.includes(title));
+      const newTitles = visibleTitles.filter((title) => !preserved.includes(title));
+      return [...preserved, ...newTitles];
+    });
+  }, [songRankings]);
 
   const handleStart = () => {
     if (!playerName.trim()) {
@@ -105,7 +185,7 @@ const MidiSelection = () => {
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Erro ao carregar arquivos MIDI. Verifique se o servidor está rodando em http://192.168.15.12:5000
+                  {`Erro ao carregar arquivos MIDI. Verifique se o servidor está rodando em ${BACKEND_URL}`}
                 </AlertDescription>
               </Alert>
             )}
@@ -123,36 +203,132 @@ const MidiSelection = () => {
             )}
 
             {!isLoading && !isError && midiFiles.length > 0 && (
-              <div className="grid gap-2">
-                {midiFiles.map((file) => (
-                  <button
-                    key={file.filename}
-                    onClick={() => setSelectedMidi(file)}
-                    className={`p-4 rounded-lg border text-left transition-all hover:shadow-md ${
-                      selectedMidi?.filename === file.filename
-                        ? "border-primary bg-primary/10 shadow-lg"
-                        : "border-border hover:border-primary/50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded ${
-                        selectedMidi?.filename === file.filename
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-secondary"
-                      }`}>
-                        <Music className="h-4 w-4" />
+              <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2">
+                {midiFiles.map((file) => {
+                  const isSelected = selectedMidi?.filename === file.filename;
+
+                  return (
+                    <button
+                      key={file.filename}
+                      onClick={() => setSelectedMidi(file)}
+                      className={`flex h-full flex-col gap-3 rounded-lg border p-4 text-left transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
+                        isSelected
+                          ? "border-primary bg-primary/10 shadow-lg"
+                          : "border-border hover:border-primary/50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`rounded p-2 ${
+                            isSelected
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-secondary"
+                          }`}
+                        >
+                          <Music className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium leading-tight">{file.name}</p>
+                        </div>
+                        {isSelected && (
+                          <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                        )}
                       </div>
-                      <div className="flex-1">
-                        <p className="font-medium">{file.name}</p>
-                      </div>
-                      {selectedMidi?.filename === file.filename && (
-                        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                      )}
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             )}
+
+            <Separator className="my-6" />
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-primary" />
+                <h3 className="text-lg font-semibold">Ranking de Pontos</h3>
+              </div>
+
+              {isPlayersError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Não foi possível carregar o ranking de jogadores. Tente novamente mais tarde.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {isPlayersLoading && (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              )}
+
+              {!isPlayersLoading && !isPlayersError && !hasRankingData && (
+                <p className="py-4 text-sm text-muted-foreground">
+                  Nenhuma pontuação registrada ainda. Jogue uma música para inaugurar o placar!
+                </p>
+              )}
+
+              {!isPlayersLoading && !isPlayersError && hasRankingData && (
+                <Accordion
+                  type="multiple"
+                  value={openSongs}
+                  onValueChange={(value) => setOpenSongs(value as string[])}
+                  className="space-y-4"
+                >
+                  {songRankings.map((ranking) => {
+                    const topEntries = ranking.entries.slice(0, 5);
+
+                    return (
+                      <AccordionItem
+                        key={ranking.title}
+                        value={ranking.title}
+                        className="overflow-hidden rounded-lg border bg-background/60 shadow-sm"
+                      >
+                        <AccordionTrigger className="px-4">
+                          <div className="flex w-full items-center justify-between gap-4">
+                            <span className="text-base font-semibold">{ranking.title}</span>
+                            <span className="text-sm text-muted-foreground">
+                              Melhor pontuação:
+                              <span className="ml-1 font-medium text-primary">
+                                {ranking.bestScore.toLocaleString("pt-BR")}
+                              </span>
+                            </span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-4">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-20">Posição</TableHead>
+                                <TableHead>Jogador</TableHead>
+                                <TableHead className="text-right">Pontuação</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {topEntries.map((entry, index) => (
+                                <TableRow
+                                  key={`${ranking.title}-${entry.name}`}
+                                  className={index === 0 ? "bg-primary/5" : undefined}
+                                >
+                                  <TableCell className="font-medium">
+                                    {index + 1}º
+                                  </TableCell>
+                                  <TableCell>{entry.name}</TableCell>
+                                  <TableCell className="text-right font-medium">
+                                    {entry.score.toLocaleString("pt-BR")}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </AccordionContent>
+                      </AccordionItem>
+                    );
+                  })}
+                </Accordion>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -11,6 +11,7 @@ interface GameControllerProps {
   onPlay?: (startTime: number) => void | Promise<void>;
   onPause?: () => void | Promise<void>;
   onReset?: () => void | Promise<void>;
+  onSongComplete?: (params: { score: number; maxCombo: number }) => void;
 }
 
 const HIT_WINDOW = 0.15; // 150ms window for hitting notes
@@ -23,13 +24,16 @@ export const GameController = ({
   onPlay,
   onPause,
   onReset,
+  onSongComplete,
 }: GameControllerProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
+  const [maxCombo, setMaxCombo] = useState(0);
   const [gameNotes, setGameNotes] = useState<GameNote[]>([]);
+  const [hasCompleted, setHasCompleted] = useState(false);
 
   // Initialize game notes from MIDI
   useEffect(() => {
@@ -41,6 +45,13 @@ export const GameController = ({
       missed: false,
     }));
     setGameNotes(notes);
+    setCurrentTime(0);
+    setStartTime(null);
+    setScore(0);
+    setCombo(0);
+    setMaxCombo(0);
+    setHasCompleted(false);
+    setIsPlaying(false);
   }, [midiNotes]);
 
   // Game loop
@@ -105,6 +116,7 @@ export const GameController = ({
       if (scoreChanged) {
         setScore(newScore);
         setCombo(newCombo);
+        setMaxCombo((prevMax) => (newCombo > prevMax ? newCombo : prevMax));
         onScoreChange(newScore, newCombo);
       }
 
@@ -112,9 +124,28 @@ export const GameController = ({
     });
   }, [pressedKeys, currentTime, isPlaying, score, combo, onScoreChange]);
 
+  useEffect(() => {
+    if (!isPlaying) {
+      return;
+    }
+
+    if (gameNotes.length === 0) {
+      return;
+    }
+
+    const allNotesProcessed = gameNotes.every((note) => !note.active);
+    if (allNotesProcessed && !hasCompleted) {
+      setHasCompleted(true);
+      setIsPlaying(false);
+      onPause?.();
+      onSongComplete?.({ score, maxCombo });
+    }
+  }, [gameNotes, hasCompleted, isPlaying, maxCombo, onPause, onSongComplete, score]);
+
   const handlePlay = useCallback(() => {
     setIsPlaying(true);
     setStartTime(Date.now() - currentTime * 1000);
+    setHasCompleted(false);
     onPlay?.(currentTime);
   }, [currentTime, onPlay]);
 
@@ -129,6 +160,7 @@ export const GameController = ({
     setStartTime(null);
     setScore(0);
     setCombo(0);
+    setMaxCombo(0);
     setGameNotes((prev) =>
       prev.map((note) => ({
         ...note,
@@ -137,6 +169,7 @@ export const GameController = ({
         missed: false,
       }))
     );
+    setHasCompleted(false);
     onReset?.();
   }, [onReset]);
 

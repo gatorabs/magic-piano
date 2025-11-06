@@ -10,7 +10,7 @@ import { fetchMidiFile } from "@/hooks/useMidiFiles";
 import { GameNote } from "@/types/midi";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, ArrowLeft, User } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -23,6 +23,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { createPlayer } from "@/lib/api";
+import { BACKEND_URL } from "@/config/backend";
 
 const Game = () => {
   const navigate = useNavigate();
@@ -36,6 +46,12 @@ const Game = () => {
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [isExitDialogOpen, setIsExitDialogOpen] = useState(false);
+  const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
+  const [finalScore, setFinalScore] = useState(0);
+  const [finalMaxCombo, setFinalMaxCombo] = useState(0);
+  const [isSavingPlayer, setIsSavingPlayer] = useState(false);
+  const [songTitle, setSongTitle] = useState("");
+  const [gameSessionId, setGameSessionId] = useState(0);
 
   useEffect(() => {
     const loadMidi = async () => {
@@ -50,10 +66,14 @@ const Game = () => {
       }
 
       setPlayerName(storedName);
+      setSongTitle(storedMidiLabel ?? "");
 
       try {
         const midiUrl = `/api/midi/${storedMidi}`;
         const file = await fetchMidiFile(midiUrl, storedMidiLabel ?? undefined);
+        if (!storedMidiLabel) {
+          setSongTitle(file.name);
+        }
         await parseMidiFile(file);
         setIsLoadingMidi(false);
       } catch (error) {
@@ -119,6 +139,67 @@ const Game = () => {
     setScore(newScore);
     setCombo(newCombo);
   }, []);
+
+  const handleSongComplete = useCallback(
+    async ({ score: finalScoreValue, maxCombo }: { score: number; maxCombo: number }) => {
+      setFinalScore(finalScoreValue);
+      setFinalMaxCombo(maxCombo);
+      setIsResultDialogOpen(true);
+      setIsSavingPlayer(true);
+
+      const title = songTitle || fileName || "Música desconhecida";
+
+      try {
+        await createPlayer({
+          name: playerName,
+          songs: [
+            {
+              title,
+              score: finalScoreValue,
+            },
+          ],
+        });
+        toast.success("Jogador cadastrado com sucesso!");
+      } catch (error) {
+        console.error("Failed to register player", error);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível cadastrar o jogador."
+        );
+      } finally {
+        setIsSavingPlayer(false);
+      }
+    },
+    [fileName, playerName, songTitle]
+  );
+
+  const handleRepeatSong = useCallback(() => {
+    setIsResultDialogOpen(false);
+    setScore(0);
+    setCombo(0);
+    setCurrentTime(0);
+    setGameNotes([]);
+    stop();
+    setGameSessionId((prev) => prev + 1);
+  }, [stop]);
+
+  const handleStopPlaying = useCallback(() => {
+    setIsResultDialogOpen(false);
+    stop();
+    clearMidi();
+    navigate("/");
+  }, [clearMidi, navigate, stop]);
+
+  const handleResultDialogChange = useCallback(
+    (open: boolean) => {
+      if (!open && isSavingPlayer) {
+        return;
+      }
+      setIsResultDialogOpen(open);
+    },
+    [isSavingPlayer]
+  );
 
   const expectedKeys = new Set(
     gameNotes
@@ -194,7 +275,7 @@ const Game = () => {
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Não foi possível conectar ao backend. Certifique-se de que o servidor Flask está rodando em http://192.168.15.12:5000
+              {`Não foi possível conectar ao backend. Certifique-se de que o servidor Flask está rodando em ${BACKEND_URL}`}
             </AlertDescription>
           </Alert>
         )}
@@ -202,6 +283,7 @@ const Game = () => {
         <div className="bg-card rounded-lg p-6 space-y-6 shadow-xl border">
           {notes.length > 0 && (
             <GameController
+              key={gameSessionId}
               midiNotes={notes}
               pressedKeys={keys}
               onGameStateChange={handleGameStateChange}
@@ -209,6 +291,7 @@ const Game = () => {
               onPlay={playFrom}
               onPause={pause}
               onReset={stop}
+              onSongComplete={handleSongComplete}
             />
           )}
 
@@ -258,6 +341,46 @@ const Game = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={isResultDialogOpen} onOpenChange={handleResultDialogChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="space-y-4 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <CheckCircle2 className="h-6 w-6" />
+            </div>
+            <DialogTitle>Música concluída!</DialogTitle>
+            <DialogDescription>
+              Sua pontuação foi registrada. Parabéns pela performance!
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-4">
+            <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3">
+              <span className="text-sm text-muted-foreground">Pontuação final</span>
+              <span className="text-xl font-semibold text-primary">{finalScore}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3">
+              <span className="text-sm text-muted-foreground">Maior combo</span>
+              <span className="text-xl font-semibold text-[hsl(var(--note-falling))]">
+                {finalMaxCombo}x
+              </span>
+            </div>
+          </div>
+
+          <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <Button onClick={handleRepeatSong} disabled={isSavingPlayer}>
+              Repetir
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={handleStopPlaying}
+              disabled={isSavingPlayer}
+            >
+              Parar de jogar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
