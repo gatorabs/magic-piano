@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { createPlayer } from "@/lib/api";
+import { BACKEND_URL } from "@/config/backend";
 
 const Game = () => {
   const navigate = useNavigate();
@@ -274,7 +275,7 @@ const Game = () => {
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Não foi possível conectar ao backend. Certifique-se de que o servidor Flask está rodando em http://192.168.15.12:5000
+              {`Não foi possível conectar ao backend. Certifique-se de que o servidor Flask está rodando em ${BACKEND_URL}`}
             </AlertDescription>
           </Alert>
         )}

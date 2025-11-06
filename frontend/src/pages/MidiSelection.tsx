@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowLeft, Music, Play, Loader2, AlertCircle, Trophy } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
+import { BACKEND_URL } from "@/config/backend";
 
 const MidiSelection = () => {
   const navigate = useNavigate();
@@ -184,7 +185,7 @@ const MidiSelection = () => {
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Erro ao carregar arquivos MIDI. Verifique se o servidor está rodando em http://192.168.15.12:5000
+                  {`Erro ao carregar arquivos MIDI. Verifique se o servidor está rodando em ${BACKEND_URL}`}
                 </AlertDescription>
               </Alert>
             )}
