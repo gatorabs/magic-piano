@@ -27,6 +27,17 @@ export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotes
 
   return (
     <div className="relative w-full max-w-5xl mx-auto h-64 bg-gradient-to-b from-background/50 to-transparent overflow-hidden border-b-4 border-primary">
+      <div className="absolute inset-0 pointer-events-none flex z-0">
+        {Array.from({ length: whiteKeyCount }).map((_, index) => (
+          <div
+            key={`lane-${index}`}
+            className={cn(
+              "flex-1 border-l border-white/10 last:border-r",
+              index % 2 === 0 ? "bg-white/[0.04]" : "bg-transparent"
+            )}
+          />
+        ))}
+      </div>
       {visibleNotes.map((note) => {
         // Calculate vertical position (0 = bottom, 1 = top)
         const timeUntilNote = note.time - currentTime;
@@ -47,8 +58,10 @@ export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotes
           <div
             key={note.id}
             className={cn(
-              "absolute transition-all duration-75 rounded-t",
-              isBlack ? "bg-purple-600" : "bg-[hsl(var(--note-falling))]",
+              "absolute transition-all duration-75 rounded-t z-10",
+              isBlack
+                ? "bg-[hsl(var(--note-falling-black))]"
+                : "bg-[hsl(var(--note-falling-white))]",
               note.hit && "bg-[hsl(var(--note-correct))]",
               note.missed && "bg-[hsl(var(--note-miss))] opacity-50",
               !note.active && "opacity-0"
@@ -59,7 +72,11 @@ export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotes
               width: `${(isBlack ? BLACK_KEY_WIDTH_RATIO : 1) * whiteKeyWidth}%`,
               transform: isBlack ? "translateX(-50%)" : undefined,
               height: `${Math.max(20, note.duration * 50)}px`,
-              boxShadow: note.active ? "0 0 10px currentColor" : "none",
+              boxShadow: note.active
+                ? "0 0 18px currentColor"
+                : isBlack
+                  ? "0 0 12px rgba(88, 63, 191, 0.35)"
+                  : "0 0 12px rgba(255, 192, 203, 0.35)",
             }}
           />
         );
