@@ -317,11 +317,11 @@ const Game = () => {
           </div>
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
-              <span className="h-4 w-4 rounded-sm border border-gray-300 bg-[hsl(var(--piano-white))]" />
+              <span className="h-4 w-4 rounded-sm border border-gray-200 bg-[hsl(var(--note-falling-white))] shadow-sm" />
               <span>Tecla branca</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="h-4 w-4 rounded-sm border border-gray-700 bg-[hsl(var(--piano-black))]" />
+              <span className="h-4 w-4 rounded-sm border border-gray-900/40 bg-[hsl(var(--note-falling-black))] shadow-sm" />
               <span>Tecla preta</span>
             </div>
           </div>
