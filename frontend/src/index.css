@@ -41,6 +41,8 @@
     --note-correct: 142 71% 50%;
     --note-miss: 0 84% 65%;
     --note-falling: 280 100% 75%;
+    --note-falling-white: 300 90% 70%;
+    --note-falling-black: 262 83% 58%;
     --note-active: 200 100% 60%;
     --note-hit: 142 76% 56%;
 
@@ -90,6 +92,8 @@
     --note-correct: 142 71% 50%;
     --note-miss: 0 84% 65%;
     --note-falling: 280 100% 75%;
+    --note-falling-white: 300 90% 70%;
+    --note-falling-black: 262 83% 58%;
     --note-active: 200 100% 60%;
     --note-hit: 142 76% 56%;
     
