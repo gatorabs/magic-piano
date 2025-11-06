@@ -188,6 +188,7 @@ def register_routes(
         )
         return response
 
+    #rotas web
     @web.route("/api/midi", methods=["OPTIONS"])
     def midi_collection_options():
         return ("", 204)
