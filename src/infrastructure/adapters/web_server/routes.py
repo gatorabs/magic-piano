@@ -55,6 +55,26 @@ def register_routes(app, frames_dict, controls_dict, midi_storage_dir: Path) -> 
     def api_keys():
         return jsonify({"keys": _build_key_payload()})
 
+    @web.after_request
+    def add_cors_headers(response):
+        """Garante que as respostas possam ser consumidas por clientes externos."""
+        response.headers.setdefault("Access-Control-Allow-Origin", "*")
+        response.headers.setdefault(
+            "Access-Control-Allow-Methods", "GET,POST,OPTIONS"
+        )
+        response.headers.setdefault(
+            "Access-Control-Allow-Headers", "Content-Type"
+        )
+        return response
+
+    @web.route("/api/midi", methods=["OPTIONS"])
+    def midi_collection_options():
+        return ("", 204)
+
+    @web.route("/api/midi/<path:filename>", methods=["OPTIONS"])
+    def midi_resource_options(filename: str):  # pragma: no cover - header-only route
+        return ("", 204)
+
     @web.route("/api/midi", methods=["GET"])
     def list_midi():
         return jsonify({"files": _list_midi_files()})
