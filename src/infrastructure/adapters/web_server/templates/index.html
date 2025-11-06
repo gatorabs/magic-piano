@@ -198,6 +198,12 @@
       .download-link:hover {
         text-decoration: underline;
       }
+
+      .midi-item .filename {
+        font-size: 0.85em;
+        color: #64748b;
+        font-weight: 500;
+      }
     </style>
   </head>
   <body>
@@ -228,6 +234,16 @@
             <p>Envie arquivos MIDI para salvar e baixar músicas.</p>
           </div>
           <form id="midi-upload-form" class="upload-form">
+            <label for="midi-name">Nome da música</label>
+            <input
+              id="midi-name"
+              class="file-input"
+              type="text"
+              name="name"
+              maxlength="120"
+              placeholder="Ex.: Fur Elise"
+              required
+            />
             <label for="midi-file">Arquivo MIDI (.mid)</label>
             <input id="midi-file" class="file-input" type="file" accept=".mid,.midi" required />
             <button class="primary-button" type="submit">Salvar música</button>
@@ -237,7 +253,12 @@
             {% if midi_files %}
             {% for midi in midi_files %}
             <li class="midi-item">
-              <span>{{ midi.name }}</span>
+              <span>
+                {{ midi.name }}
+                {% if midi.filename and midi.filename != midi.name %}
+                <small class="filename">({{ midi.filename }})</small>
+                {% endif %}
+              </span>
               <a class="download-link" href="{{ midi.url }}">Baixar</a>
             </li>
             {% endfor %}
@@ -254,6 +275,7 @@
       const midiList = document.getElementById("midi-list");
       const uploadForm = document.getElementById("midi-upload-form");
       const fileInput = document.getElementById("midi-file");
+      const nameInput = document.getElementById("midi-name");
       const feedback = document.getElementById("upload-feedback");
 
       function updateCard(key) {
@@ -318,6 +340,14 @@
           const name = document.createElement("span");
           name.textContent = file.name;
 
+          if (file.filename && file.filename !== file.name) {
+            const filename = document.createElement("small");
+            filename.className = "filename";
+            filename.textContent = `(${file.filename})`;
+            name.appendChild(document.createTextNode(" "));
+            name.appendChild(filename);
+          }
+
           const link = document.createElement("a");
           link.className = "download-link";
           link.href = file.url;
@@ -368,12 +398,18 @@
         uploadForm.addEventListener("submit", async (event) => {
           event.preventDefault();
 
+          if (!nameInput || !nameInput.value.trim()) {
+            setFeedback("Informe o nome da música antes de salvar.", "error");
+            return;
+          }
+
           if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
             setFeedback("Selecione um arquivo MIDI para enviar.", "error");
             return;
           }
 
           const formData = new FormData();
+          formData.append("name", nameInput.value.trim());
           formData.append("file", fileInput.files[0]);
 
           try {
@@ -400,6 +436,12 @@
 
         if (fileInput) {
           fileInput.addEventListener("change", () => {
+            clearFeedback();
+          });
+        }
+
+        if (nameInput) {
+          nameInput.addEventListener("input", () => {
             clearFeedback();
           });
         }

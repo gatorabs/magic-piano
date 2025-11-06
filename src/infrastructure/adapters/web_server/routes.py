@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Tuple
+from uuid import uuid4
 
 from flask import Blueprint, jsonify, render_template, request, send_from_directory
 from werkzeug.utils import secure_filename
@@ -9,12 +11,20 @@ from werkzeug.utils import secure_filename
 from src.infrastructure.constants.controls_constants import RECEIVER_BAUD, RECEIVER_COM
 
 
-def register_routes(app, frames_dict, controls_dict, midi_storage_dir: Path) -> None:
+def register_routes(
+    app,
+    frames_dict,
+    controls_dict,
+    midi_storage_dir: Path,
+    players_storage_path: Path,
+) -> None:
     """Registra rotas padrão para o monitoramento das teclas."""
 
     web = Blueprint("web", __name__)
 
     midi_storage_dir = midi_storage_dir.resolve()
+    midi_metadata_path = midi_storage_dir / "metadata.json"
+    players_storage_path = players_storage_path.resolve()
 
     def _sorted_key_ids() -> List[int]:
         keys: Iterable[Any] = frames_dict.keys()
@@ -26,20 +36,131 @@ def register_routes(app, frames_dict, controls_dict, midi_storage_dir: Path) -> 
             payload.append({"id": key_id, "pressed": bool(frames_dict.get(key_id, False))})
         return payload
 
+    def _load_midi_metadata() -> Dict[str, Dict[str, str]]:
+        if not midi_metadata_path.exists():
+            return {}
+
+        try:
+            with midi_metadata_path.open("r", encoding="utf-8") as file:
+                data = json.load(file)
+        except (OSError, json.JSONDecodeError):
+            return {}
+
+        if not isinstance(data, dict):
+            return {}
+
+        metadata: Dict[str, Dict[str, str]] = {}
+        for key, value in data.items():
+            if not isinstance(key, str) or not isinstance(value, dict):
+                continue
+
+            name = value.get("name")
+            if not isinstance(name, str) or not name.strip():
+                continue
+
+            metadata[key] = {"name": name.strip()}
+
+        return metadata
+
+    def _save_midi_metadata(metadata: Dict[str, Dict[str, str]]) -> None:
+        midi_metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        with midi_metadata_path.open("w", encoding="utf-8") as file:
+            json.dump(metadata, file, ensure_ascii=False, indent=2)
+
     def _list_midi_files() -> List[Dict[str, Any]]:
         midi_storage_dir.mkdir(parents=True, exist_ok=True)
+        metadata = _load_midi_metadata()
         midi_paths = [
             *midi_storage_dir.glob("*.mid"),
             *midi_storage_dir.glob("*.midi"),
         ]
         midi_paths.sort(key=lambda path: path.name.lower())
-        return [
-            {
-                "name": midi_path.name,
-                "url": f"/api/midi/{midi_path.name}",
-            }
-            for midi_path in midi_paths
-        ]
+        files: List[Dict[str, Any]] = []
+        for midi_path in midi_paths:
+            filename = midi_path.name
+            entry = metadata.get(filename)
+            label = entry.get("name") if entry else None
+            if not label:
+                label = midi_path.stem
+
+            files.append(
+                {
+                    "name": label,
+                    "filename": filename,
+                    "url": f"/api/midi/{filename}",
+                }
+            )
+
+        return files
+
+    def _load_players() -> List[Dict[str, Any]]:
+        if not players_storage_path.exists():
+            return []
+
+        try:
+            with players_storage_path.open("r", encoding="utf-8") as file:
+                data = json.load(file)
+        except (OSError, json.JSONDecodeError):
+            return []
+
+        if not isinstance(data, list):
+            return []
+
+        players: List[Dict[str, Any]] = []
+        for item in data:
+            if isinstance(item, dict):
+                players.append(item)
+        return players
+
+    def _save_players(players: List[Dict[str, Any]]) -> None:
+        players_storage_path.parent.mkdir(parents=True, exist_ok=True)
+        with players_storage_path.open("w", encoding="utf-8") as file:
+            json.dump(players, file, ensure_ascii=False, indent=2)
+
+    def _validate_player_payload(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
+        errors: List[str] = []
+        validated: Dict[str, Any] = {}
+
+        name = payload.get("name")
+        if not isinstance(name, str) or not name.strip():
+            errors.append("Campo 'name' é obrigatório e deve ser uma string não vazia.")
+        else:
+            validated["name"] = name.strip()
+
+        songs_raw = payload.get("songs")
+        if songs_raw is None:
+            errors.append("Campo 'songs' é obrigatório.")
+            songs = []
+        elif not isinstance(songs_raw, list):
+            errors.append("Campo 'songs' deve ser uma lista.")
+            songs = []
+        else:
+            songs = []
+            for index, entry in enumerate(songs_raw):
+                if not isinstance(entry, dict):
+                    errors.append(
+                        f"Entrada {index} em 'songs' deve ser um objeto com 'title' e 'score'."
+                    )
+                    continue
+
+                title = entry.get("title")
+                score = entry.get("score")
+                if not isinstance(title, str) or not title.strip():
+                    errors.append(
+                        f"Entrada {index} em 'songs' precisa de 'title' como string não vazia."
+                    )
+                    continue
+
+                if not isinstance(score, (int, float)):
+                    errors.append(
+                        f"Entrada {index} em 'songs' precisa de 'score' numérico."
+                    )
+                    continue
+
+                songs.append({"title": title.strip(), "score": float(score)})
+
+        validated["songs"] = songs
+        return validated, errors
 
     @web.route("/")
     def index():
@@ -82,6 +203,13 @@ def register_routes(app, frames_dict, controls_dict, midi_storage_dir: Path) -> 
     @web.route("/api/midi", methods=["POST"])
     def upload_midi():
         midi_storage_dir.mkdir(parents=True, exist_ok=True)
+        name_raw = request.form.get("name")
+        if not isinstance(name_raw, str) or not name_raw.strip():
+            return jsonify({"error": "Nome da música é obrigatório."}), 400
+
+        song_name = name_raw.strip()
+        if len(song_name) > 120:
+            return jsonify({"error": "Nome da música deve ter no máximo 120 caracteres."}), 400
         upload = request.files.get("file")
         if upload is None or upload.filename == "":
             return jsonify({"error": "Arquivo MIDI não fornecido"}), 400
@@ -96,11 +224,20 @@ def register_routes(app, frames_dict, controls_dict, midi_storage_dir: Path) -> 
 
         destination = midi_storage_dir / filename
         upload.save(destination)
+
+        metadata = _load_midi_metadata()
+        metadata[filename] = {"name": song_name}
+        _save_midi_metadata(metadata)
+
         return (
             jsonify(
                 {
                     "message": "Arquivo salvo com sucesso",
-                    "file": {"name": filename, "url": f"/api/midi/{filename}"},
+                    "file": {
+                        "name": song_name,
+                        "filename": filename,
+                        "url": f"/api/midi/{filename}",
+                    },
                 }
             ),
             201,
@@ -121,6 +258,52 @@ def register_routes(app, frames_dict, controls_dict, midi_storage_dir: Path) -> 
             safe_name,
             mimetype="audio/midi",
             as_attachment=True,
+        )
+
+    @web.route("/api/players", methods=["POST"])
+    def create_player():
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return jsonify({"error": "JSON inválido ou não fornecido."}), 400
+
+        validated, errors = _validate_player_payload(payload)
+        if errors:
+            return jsonify({"errors": errors}), 400
+
+        players = _load_players()
+        player = {
+            "id": str(uuid4()),
+            **validated,
+        }
+        players.append(player)
+        _save_players(players)
+
+        return jsonify({"player": player}), 201
+
+    @web.route("/api/players", methods=["GET"])
+    def list_players():
+        players = _load_players()
+
+        page = request.args.get("page", default=1, type=int) or 1
+        per_page = request.args.get("per_page", default=10, type=int) or 10
+
+        page = max(1, page)
+        per_page = max(1, per_page)
+
+        start = (page - 1) * per_page
+        end = start + per_page
+        paginated_players = players[start:end]
+
+        return jsonify(
+            {
+                "players": paginated_players,
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "total": len(players),
+                    "pages": (len(players) + per_page - 1) // per_page,
+                },
+            }
         )
 
     app.register_blueprint(web)

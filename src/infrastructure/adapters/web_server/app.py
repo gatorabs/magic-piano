@@ -10,13 +10,24 @@ from .routes import register_routes
 def create_app(frames_dict, controls_dict) -> Flask:
     """Cria a aplicação Flask configurada com os estados compartilhados."""
 
-    template_folder = Path(__file__).resolve().parent / "templates"
-    midi_storage_dir = Path(__file__).resolve().parent / "storage" / "midi"
+    module_dir = Path(__file__).resolve().parent
+    template_folder = module_dir / "templates"
+    storage_dir = module_dir / "storage"
+    midi_storage_dir = storage_dir / "midi"
+    players_storage_path = storage_dir / "players.json"
+
+    storage_dir.mkdir(parents=True, exist_ok=True)
     midi_storage_dir.mkdir(parents=True, exist_ok=True)
 
     app = Flask(__name__, template_folder=str(template_folder))
 
-    register_routes(app, frames_dict, controls_dict, midi_storage_dir)
+    register_routes(
+        app,
+        frames_dict,
+        controls_dict,
+        midi_storage_dir,
+        players_storage_path,
+    )
     return app
 
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMidiFiles } from "@/hooks/useMidiFiles";
+import { MidiFile, useMidiFiles } from "@/hooks/useMidiFiles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,7 @@ const MidiSelection = () => {
   const navigate = useNavigate();
   const { data: midiFiles = [], isLoading, isError } = useMidiFiles();
   const [playerName, setPlayerName] = useState("");
-  const [selectedMidi, setSelectedMidi] = useState<string>("");
+  const [selectedMidi, setSelectedMidi] = useState<MidiFile | null>(null);
 
   const handleStart = () => {
     if (!playerName.trim()) {
@@ -26,8 +26,9 @@ const MidiSelection = () => {
     }
 
     sessionStorage.setItem("playerName", playerName);
-    sessionStorage.setItem("selectedMidi", selectedMidi);
-    
+    sessionStorage.setItem("selectedMidi", selectedMidi.filename);
+    sessionStorage.setItem("selectedMidiLabel", selectedMidi.name);
+
     navigate("/game");
   };
 
@@ -72,7 +73,7 @@ const MidiSelection = () => {
             <CardHeader>
               <CardTitle>Música Selecionada</CardTitle>
               <CardDescription>
-                {selectedMidi ? selectedMidi : "Nenhuma música selecionada"}
+                {selectedMidi ? selectedMidi.name : "Nenhuma música selecionada"}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -125,24 +126,26 @@ const MidiSelection = () => {
               <div className="grid gap-2">
                 {midiFiles.map((file) => (
                   <button
-                    key={file.name}
-                    onClick={() => setSelectedMidi(file.name)}
+                    key={file.filename}
+                    onClick={() => setSelectedMidi(file)}
                     className={`p-4 rounded-lg border text-left transition-all hover:shadow-md ${
-                      selectedMidi === file.name
+                      selectedMidi?.filename === file.filename
                         ? "border-primary bg-primary/10 shadow-lg"
                         : "border-border hover:border-primary/50"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <div className={`p-2 rounded ${
-                        selectedMidi === file.name ? "bg-primary text-primary-foreground" : "bg-secondary"
+                        selectedMidi?.filename === file.filename
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary"
                       }`}>
                         <Music className="h-4 w-4" />
                       </div>
                       <div className="flex-1">
                         <p className="font-medium">{file.name}</p>
                       </div>
-                      {selectedMidi === file.name && (
+                      {selectedMidi?.filename === file.filename && (
                         <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
                       )}
                     </div>
