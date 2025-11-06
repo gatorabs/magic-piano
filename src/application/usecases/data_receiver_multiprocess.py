@@ -1,6 +1,11 @@
-from src.infrastructure.constants.controls_constants import RECEIVER_COM
-from src.infrastructure.logging.Logger import Logger
 from collections import deque
+
+from src.infrastructure.constants.controls_constants import (
+    RECEIVER_BAUD,
+    RECEIVER_COM,
+    RECEIVER_STOP,
+)
+from src.infrastructure.logging.Logger import Logger
 from src.infrastructure.adapters.serial.serial_communicator import SerialCommunicator
 from src.infrastructure.adapters.serial.piano_decoder import (
     SNAPSHOT_MARKER,
@@ -11,10 +16,11 @@ from src.infrastructure.adapters.serial.piano_decoder import (
     key_to_port_bit,
 )
 
-def data_receiver_process(shared_controls):
+
+def data_receiver_process(shared_controls, frames_dict):
     logger = Logger("SerialReceiver", verbose=True)
     current_com = shared_controls.get(RECEIVER_COM)
-    baud = shared_controls.get("RECEIVER_BAUD", 1_000_000)
+    baud = shared_controls.get(RECEIVER_BAUD, 115_200)
 
     comm = SerialCommunicator(
         com_port=current_com,
@@ -29,6 +35,10 @@ def data_receiver_process(shared_controls):
 
     # Estado das 48 teclas
     state = make_empty_state()
+
+    # Inicializa o estado compartilhado, garantindo que todas as teclas existam
+    for key_id in range(len(state)):
+        frames_dict[key_id] = bool(frames_dict.get(key_id, False))
 
     # Buffer para suportar leitura do snapshot (pegando próximos 6 bytes)
     # Estratégia: quando receber 0x7F, vamos ler os 6 bytes seguintes diretamente.
@@ -67,6 +77,8 @@ def data_receiver_process(shared_controls):
                 if changes:
                     hex_str = " ".join(f"{b:02X}" for b in snap)
                     logger.info(f"SNAPSHOT A..F = {hex_str} | changes={len(changes)}")
+                    for key_id, pressed in changes:
+                        frames_dict[key_id] = bool(pressed)
                 continue
 
             # Evento 1 byte
@@ -82,15 +94,17 @@ def data_receiver_process(shared_controls):
                 continue
 
             port_name, bit = key_to_port_bit(key_id)
-            logger.info(f"{'DOWN' if pressed else 'UP  '} "
-                        f"key={key_id:02d} (P{port_name}{bit})")
+            #logger.info(f"{'DOWN' if pressed else 'UP  '} "
+                       # f"key={key_id:02d} (P{port_name}{bit})")
+
+            frames_dict[key_id] = bool(pressed)
 
             # >>> AQUI você pode despachar para seu domínio:
             # ex.: events_bus.publish("piano.key", {"id": key_id, "pressed": bool(pressed)})
 
     def should_stop():
-        # você pode ligar isso a um flag no shared_controls se quiser
-        return False
+        # permite que o processo seja sinalizado externamente (ex.: Ctrl+C na main)
+        return bool(shared_controls.get(RECEIVER_STOP, False))
 
     try:
         comm.receive_loop(on_byte=on_byte, should_stop=should_stop)

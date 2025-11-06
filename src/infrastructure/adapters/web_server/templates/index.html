@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Monitoramento das Teclas</title>
+    <style>
+      body {
+        font-family: "Segoe UI", Arial, sans-serif;
+        margin: 0;
+        background: linear-gradient(180deg, #f5f7fa 0%, #eef1f5 100%);
+        color: #1f2933;
+      }
+
+      .page-wrapper {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2.5rem 2rem 3rem;
+      }
+
+      h1 {
+        margin-bottom: 0.25rem;
+        font-size: 2.25rem;
+        font-weight: 600;
+      }
+
+      .metadata {
+        margin-bottom: 2rem;
+        color: #52606d;
+        font-size: 0.95rem;
+      }
+
+      .metadata strong {
+        color: #1f2933;
+      }
+
+      .panels {
+        display: grid;
+        gap: 1.5rem;
+      }
+
+      @media (min-width: 960px) {
+        .panels {
+          grid-template-columns: 2fr 1fr;
+          align-items: start;
+        }
+      }
+
+      .panel {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(96, 112, 134, 0.2);
+        border-radius: 16px;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+        padding: 1.75rem 1.5rem 2rem;
+      }
+
+      .panel-header {
+        margin-bottom: 1.5rem;
+      }
+
+      .panel-header h2 {
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: 600;
+      }
+
+      .panel-header p {
+        margin: 0.35rem 0 0;
+        color: #52606d;
+        font-size: 0.95rem;
+      }
+
+      .keys-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.75rem;
+      }
+
+      .key-card {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(96, 112, 134, 0.2);
+        border-radius: 12px;
+        padding: 1.25rem 1rem;
+        box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .key-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 14px 26px rgba(15, 23, 42, 0.12);
+      }
+
+      .key-card.pressed {
+        background: radial-gradient(circle at top, #1d4ed8 0%, #1e293b 100%);
+        color: #f8fafc;
+        border-color: rgba(29, 78, 216, 0.45);
+        box-shadow: 0 10px 24px rgba(30, 64, 175, 0.35);
+      }
+
+      .key-card.released {
+        color: #52606d;
+      }
+
+      .key-label {
+        font-size: 1.5rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+
+      .key-status {
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .upload-form {
+        display: grid;
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+      }
+
+      .upload-form label {
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+
+      .file-input {
+        padding: 0.55rem 0.75rem;
+        border: 1px solid rgba(96, 112, 134, 0.3);
+        border-radius: 10px;
+        background-color: rgba(248, 250, 252, 0.9);
+        font-size: 0.95rem;
+      }
+
+      .primary-button {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        border: none;
+        border-radius: 999px;
+        color: #fff;
+        font-weight: 600;
+        padding: 0.65rem 1.5rem;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      .primary-button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 22px rgba(37, 99, 235, 0.22);
+      }
+
+      .primary-button:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+
+      .form-feedback {
+        font-size: 0.9rem;
+        margin: 0;
+      }
+
+      .form-feedback.success {
+        color: #059669;
+      }
+
+      .form-feedback.error {
+        color: #b91c1c;
+      }
+
+      .midi-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 0.75rem;
+      }
+
+      .midi-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(248, 250, 252, 0.9);
+        border: 1px solid rgba(96, 112, 134, 0.18);
+        border-radius: 12px;
+        padding: 0.8rem 1rem;
+        font-size: 0.95rem;
+      }
+
+      .download-link {
+        color: #2563eb;
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      .download-link:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-wrapper">
+      <h1>Piano digital - Teclas</h1>
+      <div class="metadata">
+        Porta atual: <strong>{{ serial_port or 'desconhecida' }}</strong> | Baud:
+        <strong>{{ serial_baud or 'n/d' }}</strong>
+      </div>
+      <div class="panels">
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Monitoramento de teclas</h2>
+            <p>Acompanhe em tempo real as teclas pressionadas.</p>
+          </div>
+          <div class="keys-grid" id="keys-grid">
+            {% for key in keys %}
+            <div class="key-card {{ 'pressed' if key.pressed else 'released' }}" data-key-id="{{ key.id }}">
+              <span class="key-label">#{{ '%02d' | format(key.id) }}</span>
+              <span class="key-status">{{ 'Pressionada' if key.pressed else 'Liberada' }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Biblioteca de músicas</h2>
+            <p>Envie arquivos MIDI para salvar e baixar músicas.</p>
+          </div>
+          <form id="midi-upload-form" class="upload-form">
+            <label for="midi-file">Arquivo MIDI (.mid)</label>
+            <input id="midi-file" class="file-input" type="file" accept=".mid,.midi" required />
+            <button class="primary-button" type="submit">Salvar música</button>
+          </form>
+          <p id="upload-feedback" class="form-feedback" hidden></p>
+          <ul class="midi-list" id="midi-list">
+            {% if midi_files %}
+            {% for midi in midi_files %}
+            <li class="midi-item">
+              <span>{{ midi.name }}</span>
+              <a class="download-link" href="{{ midi.url }}">Baixar</a>
+            </li>
+            {% endfor %}
+            {% else %}
+            <li class="midi-item">Nenhuma música salva ainda.</li>
+            {% endif %}
+          </ul>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      const grid = document.getElementById("keys-grid");
+      const midiList = document.getElementById("midi-list");
+      const uploadForm = document.getElementById("midi-upload-form");
+      const fileInput = document.getElementById("midi-file");
+      const feedback = document.getElementById("upload-feedback");
+
+      function updateCard(key) {
+        const card = grid.querySelector(`[data-key-id="${key.id}"]`);
+        if (!card) {
+          return;
+        }
+
+        const status = card.querySelector(".key-status");
+        if (!status) {
+          return;
+        }
+
+        if (key.pressed) {
+          card.classList.add("pressed");
+          card.classList.remove("released");
+          status.textContent = "Pressionada";
+        } else {
+          card.classList.add("released");
+          card.classList.remove("pressed");
+          status.textContent = "Liberada";
+        }
+      }
+
+      async function fetchKeys() {
+        try {
+          const response = await fetch("/api/keys");
+          if (!response.ok) {
+            return;
+          }
+          const data = await response.json();
+          if (!data.keys) {
+            return;
+          }
+          data.keys.forEach(updateCard);
+        } catch (err) {
+          console.error("Falha ao atualizar teclas", err);
+        }
+      }
+
+      setInterval(fetchKeys, 500);
+
+      function renderMidiList(files) {
+        if (!midiList) {
+          return;
+        }
+
+        midiList.innerHTML = "";
+
+        if (!files || files.length === 0) {
+          const item = document.createElement("li");
+          item.className = "midi-item";
+          item.textContent = "Nenhuma música salva ainda.";
+          midiList.appendChild(item);
+          return;
+        }
+
+        files.forEach((file) => {
+          const item = document.createElement("li");
+          item.className = "midi-item";
+
+          const name = document.createElement("span");
+          name.textContent = file.name;
+
+          const link = document.createElement("a");
+          link.className = "download-link";
+          link.href = file.url;
+          link.textContent = "Baixar";
+
+          item.appendChild(name);
+          item.appendChild(link);
+          midiList.appendChild(item);
+        });
+      }
+
+      async function fetchMidiFiles() {
+        try {
+          const response = await fetch("/api/midi");
+          if (!response.ok) {
+            return;
+          }
+
+          const data = await response.json();
+          renderMidiList(data.files || []);
+        } catch (error) {
+          console.error("Falha ao carregar arquivos MIDI", error);
+        }
+      }
+
+      function setFeedback(message, type) {
+        if (!feedback) {
+          return;
+        }
+
+        feedback.textContent = message;
+        feedback.classList.remove("success", "error");
+        feedback.classList.add(type);
+        feedback.hidden = false;
+      }
+
+      function clearFeedback() {
+        if (!feedback) {
+          return;
+        }
+
+        feedback.hidden = true;
+        feedback.textContent = "";
+        feedback.classList.remove("success", "error");
+      }
+
+      if (uploadForm) {
+        uploadForm.addEventListener("submit", async (event) => {
+          event.preventDefault();
+
+          if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            setFeedback("Selecione um arquivo MIDI para enviar.", "error");
+            return;
+          }
+
+          const formData = new FormData();
+          formData.append("file", fileInput.files[0]);
+
+          try {
+            const response = await fetch("/api/midi", {
+              method: "POST",
+              body: formData,
+            });
+
+            const payload = await response.json();
+
+            if (!response.ok) {
+              setFeedback(payload.error || "Falha ao enviar arquivo.", "error");
+              return;
+            }
+
+            setFeedback("Música salva com sucesso!", "success");
+            uploadForm.reset();
+            fetchMidiFiles();
+          } catch (error) {
+            console.error("Falha ao enviar arquivo MIDI", error);
+            setFeedback("Falha ao enviar arquivo.", "error");
+          }
+        });
+
+        if (fileInput) {
+          fileInput.addEventListener("change", () => {
+            clearFeedback();
+          });
+        }
+      }
+
+      fetchMidiFiles();
+      setInterval(fetchMidiFiles, 10000);
+    </script>
+  </body>
+</html>
