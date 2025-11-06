@@ -1,19 +1,82 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MidiFile, useMidiFiles } from "@/hooks/useMidiFiles";
+import { usePlayers } from "@/hooks/usePlayers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Music, Play, Loader2, AlertCircle } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ArrowLeft, Music, Play, Loader2, AlertCircle, Trophy } from "lucide-react";
 import { toast } from "sonner";
 
 const MidiSelection = () => {
   const navigate = useNavigate();
   const { data: midiFiles = [], isLoading, isError } = useMidiFiles();
+  const {
+    data: playersData,
+    isLoading: isPlayersLoading,
+    isError: isPlayersError,
+  } = usePlayers();
   const [playerName, setPlayerName] = useState("");
   const [selectedMidi, setSelectedMidi] = useState<MidiFile | null>(null);
+
+  const songRankings = useMemo(() => {
+    if (!playersData?.players?.length) {
+      return [] as Array<{
+        title: string;
+        entries: { name: string; score: number }[];
+        bestScore: number;
+      }>;
+    }
+
+    const songsMap = new Map<string, Map<string, number>>();
+
+    for (const player of playersData.players) {
+      const playerNameValue = player.name?.trim() || "Jogador desconhecido";
+
+      for (const song of player.songs ?? []) {
+        const title = String(song.title ?? "").trim() || "Música desconhecida";
+        const numericScore = Number(song.score);
+        const score = Number.isFinite(numericScore) ? numericScore : 0;
+
+        if (!songsMap.has(title)) {
+          songsMap.set(title, new Map());
+        }
+
+        const playerScores = songsMap.get(title)!;
+        const current = playerScores.get(playerNameValue);
+
+        if (current === undefined || score > current) {
+          playerScores.set(playerNameValue, score);
+        }
+      }
+    }
+
+    const rankings = Array.from(songsMap.entries()).map(([title, playerScores]) => {
+      const entries = Array.from(playerScores.entries())
+        .map(([name, score]) => ({ name, score }))
+        .sort((a, b) => b.score - a.score);
+
+      return {
+        title,
+        entries,
+        bestScore: entries[0]?.score ?? 0,
+      };
+    });
+
+    return rankings
+      .filter((ranking) => ranking.entries.length > 0)
+      .sort(
+        (a, b) =>
+          b.bestScore - a.bestScore ||
+          a.title.localeCompare(b.title, "pt-BR", { sensitivity: "base" })
+      );
+  }, [playersData]);
+
+  const hasRankingData = songRankings.length > 0;
 
   const handleStart = () => {
     if (!playerName.trim()) {
@@ -153,6 +216,91 @@ const MidiSelection = () => {
                 ))}
               </div>
             )}
+
+            <Separator className="my-6" />
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-primary" />
+                <h3 className="text-lg font-semibold">Ranking de Pontos</h3>
+              </div>
+
+              {isPlayersError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Não foi possível carregar o ranking de jogadores. Tente novamente mais tarde.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {isPlayersLoading && (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              )}
+
+              {!isPlayersLoading && !isPlayersError && !hasRankingData && (
+                <p className="py-4 text-sm text-muted-foreground">
+                  Nenhuma pontuação registrada ainda. Jogue uma música para inaugurar o placar!
+                </p>
+              )}
+
+              {!isPlayersLoading && !isPlayersError && hasRankingData && (
+                <div className="space-y-6">
+                  {songRankings.map((ranking) => {
+                    const topEntries = ranking.entries.slice(0, 5);
+
+                    return (
+                      <div
+                        key={ranking.title}
+                        className="rounded-lg border bg-background/60 shadow-sm"
+                      >
+                        <div className="border-b px-4 py-3">
+                          <div className="flex items-center justify-between gap-4">
+                            <h4 className="text-base font-semibold">{ranking.title}</h4>
+                            <span className="text-sm text-muted-foreground">
+                              Melhor pontuação:
+                              <span className="ml-1 font-medium text-primary">
+                                {ranking.bestScore.toLocaleString("pt-BR")}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="px-4 py-3">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-20">Posição</TableHead>
+                                <TableHead>Jogador</TableHead>
+                                <TableHead className="text-right">Pontuação</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {topEntries.map((entry, index) => (
+                                <TableRow
+                                  key={`${ranking.title}-${entry.name}`}
+                                  className={index === 0 ? "bg-primary/5" : undefined}
+                                >
+                                  <TableCell className="font-medium">
+                                    {index + 1}º
+                                  </TableCell>
+                                  <TableCell>{entry.name}</TableCell>
+                                  <TableCell className="text-right font-medium">
+                                    {entry.score.toLocaleString("pt-BR")}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
