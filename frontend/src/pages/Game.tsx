@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Piano } from "@/components/Piano/Piano";
 import { FallingNotes } from "@/components/MidiPlayer/FallingNotes";
@@ -11,6 +11,17 @@ import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, ArrowLeft, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Progress } from "@/components/ui/progress";
 
 const Game = () => {
   const navigate = useNavigate();
@@ -22,6 +33,7 @@ const Game = () => {
   const [currentTime, setCurrentTime] = useState(0);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
+  const [isExitDialogOpen, setIsExitDialogOpen] = useState(false);
 
   useEffect(() => {
     const loadMidi = async () => {
@@ -51,12 +63,40 @@ const Game = () => {
     loadMidi();
   }, [navigate, parseMidiFile]);
 
+  const totalDuration = useMemo(() => {
+    if (notes.length === 0) {
+      return 0;
+    }
+
+    return notes.reduce((max, note) => {
+      const endTime = note.time + note.duration;
+      return endTime > max ? endTime : max;
+    }, 0);
+  }, [notes]);
+
+  const formatTime = useCallback((timeInSeconds: number) => {
+    if (!Number.isFinite(timeInSeconds)) {
+      return "0:00";
+    }
+
+    const clamped = Math.max(0, Math.min(timeInSeconds, totalDuration || timeInSeconds));
+    const minutes = Math.floor(clamped / 60);
+    const seconds = Math.floor(clamped % 60)
+      .toString()
+      .padStart(2, "0");
+
+    return `${minutes}:${seconds}`;
+  }, [totalDuration]);
+
   const handleGameStateChange = useCallback(
     (notes: GameNote[], time: number) => {
       setGameNotes(notes);
-      setCurrentTime(time);
+      setCurrentTime((prevTime) => {
+        const nextTime = Math.min(time, totalDuration || time);
+        return nextTime === prevTime ? prevTime : nextTime;
+      });
     },
-    []
+    [totalDuration]
   );
 
   const handleScoreChange = useCallback((newScore: number, newCombo: number) => {
@@ -101,11 +141,7 @@ const Game = () => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => {
-                if (confirm("Deseja sair do jogo? Seu progresso será perdido.")) {
-                  navigate("/");
-                }
-              }}
+              onClick={() => setIsExitDialogOpen(true)}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -121,6 +157,22 @@ const Game = () => {
             <span className="font-medium">{playerName}</span>
           </div>
         </header>
+
+        <div className="bg-card/80 backdrop-blur-sm border rounded-lg p-4 shadow-lg">
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <span className="font-medium text-primary">
+              {formatTime(currentTime)}
+            </span>
+            <span className="uppercase tracking-wide">Progresso da música</span>
+            <span className="font-medium text-muted-foreground">
+              {formatTime(totalDuration)}
+            </span>
+          </div>
+          <Progress
+            value={totalDuration ? (currentTime / totalDuration) * 100 : 0}
+            className="mt-3 h-2"
+          />
+        </div>
 
         {isError && (
           <Alert variant="destructive">
@@ -165,6 +217,28 @@ const Game = () => {
           )}
         </div>
       </div>
+
+      <AlertDialog open={isExitDialogOpen} onOpenChange={setIsExitDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deseja sair do jogo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Seu progresso será perdido.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar jogando</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                clearMidi();
+                navigate("/");
+              }}
+            >
+              Sair agora
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
