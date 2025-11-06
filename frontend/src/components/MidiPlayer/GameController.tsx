@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { MidiNote, GameNote, KeyState } from "@/types/midi";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, RotateCcw } from "lucide-react";
+import { MusicPlayer } from "@/lib/musicPlayer";
 
 interface GameControllerProps {
   midiNotes: MidiNote[];
@@ -20,10 +21,14 @@ export const GameController = ({
 }: GameControllerProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [startTime, setStartTime] = useState<number | null>(null);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [gameNotes, setGameNotes] = useState<GameNote[]>([]);
+  const musicPlayerRef = useRef<MusicPlayer | null>(null);
+
+  if (!musicPlayerRef.current) {
+    musicPlayerRef.current = new MusicPlayer();
+  }
 
   // Initialize game notes from MIDI
   useEffect(() => {
@@ -39,16 +44,37 @@ export const GameController = ({
 
   // Game loop
   useEffect(() => {
-    if (!isPlaying || !startTime) return;
+    const player = musicPlayerRef.current;
 
-    const intervalId = setInterval(() => {
-      const elapsed = (Date.now() - startTime) / 1000;
-      setCurrentTime(elapsed);
-      onGameStateChange(gameNotes, elapsed);
-    }, 16); // ~60fps
+    let animationId: number;
 
-    return () => clearInterval(intervalId);
-  }, [isPlaying, startTime, gameNotes, onGameStateChange]);
+    const updateLoop = () => {
+      if (player?.isPlaying()) {
+        player.schedule();
+        setCurrentTime(player.getCurrentTime());
+      }
+      animationId = requestAnimationFrame(updateLoop);
+    };
+
+    animationId = requestAnimationFrame(updateLoop);
+
+    return () => cancelAnimationFrame(animationId);
+  }, []);
+
+  useEffect(() => {
+    musicPlayerRef.current?.setNotes(midiNotes);
+  }, [midiNotes]);
+
+  useEffect(() => {
+    return () => {
+      musicPlayerRef.current?.dispose();
+      musicPlayerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    onGameStateChange(gameNotes, currentTime);
+  }, [gameNotes, currentTime, onGameStateChange]);
 
   // Check for missed notes
   useEffect(() => {
@@ -106,21 +132,23 @@ export const GameController = ({
     });
   }, [pressedKeys, currentTime, isPlaying, score, combo, onScoreChange]);
 
-  const handlePlay = useCallback(() => {
+  const handlePlay = useCallback(async () => {
+    await musicPlayerRef.current?.play(currentTime);
     setIsPlaying(true);
-    setStartTime(Date.now() - currentTime * 1000);
   }, [currentTime]);
 
-  const handlePause = useCallback(() => {
+  const handlePause = useCallback(async () => {
     setIsPlaying(false);
+    await musicPlayerRef.current?.pause();
+    setCurrentTime(musicPlayerRef.current?.getCurrentTime() ?? 0);
   }, []);
 
   const handleReset = useCallback(() => {
     setIsPlaying(false);
     setCurrentTime(0);
-    setStartTime(null);
     setScore(0);
     setCombo(0);
+    void musicPlayerRef.current?.stop();
     setGameNotes((prev) =>
       prev.map((note) => ({
         ...note,
@@ -130,6 +158,22 @@ export const GameController = ({
       }))
     );
   }, []);
+
+  const totalDuration = midiNotes.length
+    ? midiNotes[midiNotes.length - 1].time + midiNotes[midiNotes.length - 1].duration
+    : 0;
+
+  useEffect(() => {
+    if (!isPlaying) {
+      return;
+    }
+
+    if (currentTime >= totalDuration) {
+      setIsPlaying(false);
+      void musicPlayerRef.current?.pause();
+      setCurrentTime(totalDuration);
+    }
+  }, [currentTime, isPlaying, totalDuration]);
 
   return (
     <div className="flex items-center gap-4">
