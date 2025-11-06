@@ -315,6 +315,16 @@ const Game = () => {
               missedKeys={missedKeys}
             />
           </div>
+          <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <span className="h-4 w-4 rounded-sm border border-gray-300 bg-[hsl(var(--piano-white))]" />
+              <span>Tecla branca</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-4 w-4 rounded-sm border border-gray-700 bg-[hsl(var(--piano-black))]" />
+              <span>Tecla preta</span>
+            </div>
+          </div>
 
           {keys.length === 0 && !isError && (
             <div className="text-center py-8 text-muted-foreground">

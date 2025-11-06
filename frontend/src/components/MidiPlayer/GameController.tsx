@@ -34,6 +34,15 @@ export const GameController = ({
   const [maxCombo, setMaxCombo] = useState(0);
   const [gameNotes, setGameNotes] = useState<GameNote[]>([]);
   const [hasCompleted, setHasCompleted] = useState(false);
+  const [isCountdownActive, setIsCountdownActive] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+
+  const startPlayback = useCallback(() => {
+    setIsPlaying(true);
+    setStartTime(Date.now() - currentTime * 1000);
+    setHasCompleted(false);
+    onPlay?.(currentTime);
+  }, [currentTime, onPlay]);
 
   // Initialize game notes from MIDI
   useEffect(() => {
@@ -52,6 +61,8 @@ export const GameController = ({
     setMaxCombo(0);
     setHasCompleted(false);
     setIsPlaying(false);
+    setIsCountdownActive(false);
+    setCountdown(null);
   }, [midiNotes]);
 
   // Game loop
@@ -143,18 +154,24 @@ export const GameController = ({
   }, [gameNotes, hasCompleted, isPlaying, maxCombo, onPause, onSongComplete, score]);
 
   const handlePlay = useCallback(() => {
-    setIsPlaying(true);
-    setStartTime(Date.now() - currentTime * 1000);
-    setHasCompleted(false);
-    onPlay?.(currentTime);
-  }, [currentTime, onPlay]);
+    if (isCountdownActive) {
+      return;
+    }
+
+    setCountdown(3);
+    setIsCountdownActive(true);
+  }, [isCountdownActive]);
 
   const handlePause = useCallback(() => {
+    setIsCountdownActive(false);
+    setCountdown(null);
     setIsPlaying(false);
     onPause?.();
   }, [onPause]);
 
   const handleReset = useCallback(() => {
+    setIsCountdownActive(false);
+    setCountdown(null);
     setIsPlaying(false);
     setCurrentTime(0);
     setStartTime(null);
@@ -173,11 +190,30 @@ export const GameController = ({
     onReset?.();
   }, [onReset]);
 
+  useEffect(() => {
+    if (!isCountdownActive || countdown === null) {
+      return;
+    }
+
+    if (countdown <= 0) {
+      setIsCountdownActive(false);
+      setCountdown(null);
+      startPlayback();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setCountdown((prev) => (prev ?? 1) - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [countdown, isCountdownActive, startPlayback]);
+
   return (
-    <div className="flex items-center gap-4">
+    <div className="relative flex w-full items-center gap-4">
       <div className="flex gap-2">
         {!isPlaying ? (
-          <Button onClick={handlePlay} size="lg">
+          <Button onClick={handlePlay} size="lg" disabled={isCountdownActive}>
             <Play className="h-5 w-5" />
           </Button>
         ) : (
@@ -202,6 +238,14 @@ export const GameController = ({
           </div>
         </div>
       </div>
+
+      {isCountdownActive && countdown !== null && countdown > 0 && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center">
+          <div className="rounded-lg bg-background/80 px-8 py-4 text-4xl font-bold text-primary shadow-lg">
+            {countdown}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
