@@ -39,6 +39,7 @@ const Game = () => {
     const loadMidi = async () => {
       const storedName = sessionStorage.getItem("playerName");
       const storedMidi = sessionStorage.getItem("selectedMidi");
+      const storedMidiLabel = sessionStorage.getItem("selectedMidiLabel");
 
       if (!storedName || !storedMidi) {
         toast.error("Nenhuma música selecionada");
@@ -50,7 +51,7 @@ const Game = () => {
 
       try {
         const midiUrl = `/api/midi/${storedMidi}`;
-        const file = await fetchMidiFile(midiUrl);
+        const file = await fetchMidiFile(midiUrl, storedMidiLabel ?? undefined);
         await parseMidiFile(file);
         setIsLoadingMidi(false);
       } catch (error) {

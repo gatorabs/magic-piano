@@ -23,6 +23,7 @@ def register_routes(
     web = Blueprint("web", __name__)
 
     midi_storage_dir = midi_storage_dir.resolve()
+    midi_metadata_path = midi_storage_dir / "metadata.json"
     players_storage_path = players_storage_path.resolve()
 
     def _sorted_key_ids() -> List[int]:
@@ -35,20 +36,62 @@ def register_routes(
             payload.append({"id": key_id, "pressed": bool(frames_dict.get(key_id, False))})
         return payload
 
+    def _load_midi_metadata() -> Dict[str, Dict[str, str]]:
+        if not midi_metadata_path.exists():
+            return {}
+
+        try:
+            with midi_metadata_path.open("r", encoding="utf-8") as file:
+                data = json.load(file)
+        except (OSError, json.JSONDecodeError):
+            return {}
+
+        if not isinstance(data, dict):
+            return {}
+
+        metadata: Dict[str, Dict[str, str]] = {}
+        for key, value in data.items():
+            if not isinstance(key, str) or not isinstance(value, dict):
+                continue
+
+            name = value.get("name")
+            if not isinstance(name, str) or not name.strip():
+                continue
+
+            metadata[key] = {"name": name.strip()}
+
+        return metadata
+
+    def _save_midi_metadata(metadata: Dict[str, Dict[str, str]]) -> None:
+        midi_metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        with midi_metadata_path.open("w", encoding="utf-8") as file:
+            json.dump(metadata, file, ensure_ascii=False, indent=2)
+
     def _list_midi_files() -> List[Dict[str, Any]]:
         midi_storage_dir.mkdir(parents=True, exist_ok=True)
+        metadata = _load_midi_metadata()
         midi_paths = [
             *midi_storage_dir.glob("*.mid"),
             *midi_storage_dir.glob("*.midi"),
         ]
         midi_paths.sort(key=lambda path: path.name.lower())
-        return [
-            {
-                "name": midi_path.name,
-                "url": f"/api/midi/{midi_path.name}",
-            }
-            for midi_path in midi_paths
-        ]
+        files: List[Dict[str, Any]] = []
+        for midi_path in midi_paths:
+            filename = midi_path.name
+            entry = metadata.get(filename)
+            label = entry.get("name") if entry else None
+            if not label:
+                label = midi_path.stem
+
+            files.append(
+                {
+                    "name": label,
+                    "filename": filename,
+                    "url": f"/api/midi/{filename}",
+                }
+            )
+
+        return files
 
     def _load_players() -> List[Dict[str, Any]]:
         if not players_storage_path.exists():
@@ -160,6 +203,13 @@ def register_routes(
     @web.route("/api/midi", methods=["POST"])
     def upload_midi():
         midi_storage_dir.mkdir(parents=True, exist_ok=True)
+        name_raw = request.form.get("name")
+        if not isinstance(name_raw, str) or not name_raw.strip():
+            return jsonify({"error": "Nome da música é obrigatório."}), 400
+
+        song_name = name_raw.strip()
+        if len(song_name) > 120:
+            return jsonify({"error": "Nome da música deve ter no máximo 120 caracteres."}), 400
         upload = request.files.get("file")
         if upload is None or upload.filename == "":
             return jsonify({"error": "Arquivo MIDI não fornecido"}), 400
@@ -174,11 +224,20 @@ def register_routes(
 
         destination = midi_storage_dir / filename
         upload.save(destination)
+
+        metadata = _load_midi_metadata()
+        metadata[filename] = {"name": song_name}
+        _save_midi_metadata(metadata)
+
         return (
             jsonify(
                 {
                     "message": "Arquivo salvo com sucesso",
-                    "file": {"name": filename, "url": f"/api/midi/{filename}"},
+                    "file": {
+                        "name": song_name,
+                        "filename": filename,
+                        "url": f"/api/midi/{filename}",
+                    },
                 }
             ),
             201,
