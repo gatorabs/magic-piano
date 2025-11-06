@@ -11,9 +11,12 @@ def create_app(frames_dict, controls_dict) -> Flask:
     """Cria a aplicação Flask configurada com os estados compartilhados."""
 
     template_folder = Path(__file__).resolve().parent / "templates"
+    midi_storage_dir = Path(__file__).resolve().parent / "storage" / "midi"
+    midi_storage_dir.mkdir(parents=True, exist_ok=True)
+
     app = Flask(__name__, template_folder=str(template_folder))
 
-    register_routes(app, frames_dict, controls_dict)
+    register_routes(app, frames_dict, controls_dict, midi_storage_dir)
     return app
 
 
