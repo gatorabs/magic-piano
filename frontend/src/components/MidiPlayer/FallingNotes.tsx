@@ -16,9 +16,13 @@ const isBlackKey = (midi: number): boolean => {
 export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotesProps) => {
   // Only show notes within lookAheadTime
   const safeLookAhead = Math.max(lookAheadTime, 0.001);
-  const visibleNotes = notes.filter(
-    (note) => note.time >= currentTime && note.time <= currentTime + safeLookAhead
-  );
+  const visibleNotes = notes.filter((note) => {
+    const noteEndTime = note.time + note.duration;
+    return (
+      noteEndTime >= currentTime &&
+      note.time <= currentTime + safeLookAhead
+    );
+  });
   const totalKeys = 48;
   const whiteKeyCount = Array.from({ length: totalKeys })
     .map((_, index) => index)
@@ -30,7 +34,10 @@ export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotes
       {visibleNotes.map((note) => {
         // Calculate vertical position (0 = bottom, 1 = top)
         const timeUntilNote = note.time - currentTime;
-        const clampedTimeUntil = Math.min(Math.max(timeUntilNote, 0), safeLookAhead);
+        const clampedTimeUntil = Math.min(
+          Math.max(timeUntilNote, 0),
+          safeLookAhead
+        );
         const bottomPosition = (clampedTimeUntil / safeLookAhead) * 100;
 
         // Calculate horizontal position based on MIDI note
