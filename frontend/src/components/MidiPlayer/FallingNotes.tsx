@@ -14,23 +14,24 @@ const isBlackKey = (midi: number): boolean => {
 
 export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotesProps) => {
   // Only show notes within lookAheadTime
+  const safeLookAhead = Math.max(lookAheadTime, 0.001);
   const visibleNotes = notes.filter(
-    (note) => note.time >= currentTime && note.time <= currentTime + lookAheadTime
+    (note) => note.time >= currentTime && note.time <= currentTime + safeLookAhead
   );
   const totalKeys = 48;
   const whiteKeyCount = Array.from({ length: totalKeys })
     .map((_, index) => index)
     .filter((index) => !isBlackKey(index)).length;
   const whiteKeyWidth = 100 / whiteKeyCount;
-  const blackKeyWidth = whiteKeyWidth * 0.6;
+  const blackKeyWidth = whiteKeyWidth * 0.75;
 
   return (
     <div className="relative w-full max-w-5xl mx-auto h-64 bg-gradient-to-b from-background/50 to-transparent overflow-hidden border-b-4 border-primary">
       {visibleNotes.map((note) => {
         // Calculate vertical position (0 = bottom, 1 = top)
         const timeUntilNote = note.time - currentTime;
-        const verticalProgress = 1 - (timeUntilNote / lookAheadTime);
-        const topPosition = verticalProgress * 100;
+        const clampedTimeUntil = Math.min(Math.max(timeUntilNote, 0), safeLookAhead);
+        const bottomPosition = (clampedTimeUntil / safeLookAhead) * 100;
 
         // Calculate horizontal position based on MIDI note
         const keyId = note.midi % totalKeys; // Assuming 48 keys
@@ -53,7 +54,7 @@ export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotes
               !note.active && "opacity-0"
             )}
             style={{
-              bottom: `${topPosition}%`,
+              bottom: `${bottomPosition}%`,
               left: `${leftPercent}%`,
               width: `${isBlack ? blackKeyWidth : whiteKeyWidth}%`,
               transform: isBlack ? "translateX(-50%)" : undefined,

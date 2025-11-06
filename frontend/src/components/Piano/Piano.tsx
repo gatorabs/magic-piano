@@ -22,7 +22,7 @@ export const Piano = ({ keys, expectedKeys, correctKeys, missedKeys }: PianoProp
   const whiteKeys = sortedKeys.filter((k) => !isBlackKey(k.id));
   const whiteKeyCount = Math.max(whiteKeys.length, 1);
   const whiteKeyWidth = 100 / whiteKeyCount;
-  const blackKeyWidth = whiteKeyWidth * 0.6;
+  const blackKeyWidth = whiteKeyWidth * 0.75;
 
   return (
     <div className="relative w-full max-w-5xl mx-auto">
