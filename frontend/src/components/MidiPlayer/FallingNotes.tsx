@@ -17,9 +17,15 @@ export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotes
   const visibleNotes = notes.filter(
     (note) => note.time >= currentTime && note.time <= currentTime + lookAheadTime
   );
+  const totalKeys = 48;
+  const whiteKeyCount = Array.from({ length: totalKeys })
+    .map((_, index) => index)
+    .filter((index) => !isBlackKey(index)).length;
+  const whiteKeyWidth = 100 / whiteKeyCount;
+  const blackKeyWidth = whiteKeyWidth * 0.6;
 
   return (
-    <div className="relative w-full h-64 bg-gradient-to-b from-background/50 to-transparent overflow-hidden border-b-4 border-primary">
+    <div className="relative w-full max-w-5xl mx-auto h-64 bg-gradient-to-b from-background/50 to-transparent overflow-hidden border-b-4 border-primary">
       {visibleNotes.map((note) => {
         // Calculate vertical position (0 = bottom, 1 = top)
         const timeUntilNote = note.time - currentTime;
@@ -27,28 +33,30 @@ export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotes
         const topPosition = verticalProgress * 100;
 
         // Calculate horizontal position based on MIDI note
-        const keyId = note.midi % 48; // Assuming 48 keys
+        const keyId = note.midi % totalKeys; // Assuming 48 keys
         const whiteKeysBeforeThis = Array.from({ length: keyId })
           .filter((_, i) => !isBlackKey(i))
           .length;
         const isBlack = isBlackKey(keyId);
-        const leftPosition = isBlack
-          ? whiteKeysBeforeThis * 48 + 36
-          : whiteKeysBeforeThis * 48;
+        const leftPercent = isBlack
+          ? (whiteKeysBeforeThis + 0.5) * whiteKeyWidth
+          : whiteKeysBeforeThis * whiteKeyWidth;
 
         return (
           <div
             key={note.id}
             className={cn(
               "absolute transition-all duration-75 rounded-t",
-              isBlack ? "w-8 bg-purple-600" : "w-12 bg-[hsl(var(--note-falling))]",
+              isBlack ? "bg-purple-600" : "bg-[hsl(var(--note-falling))]",
               note.hit && "bg-[hsl(var(--note-correct))]",
               note.missed && "bg-[hsl(var(--note-miss))] opacity-50",
               !note.active && "opacity-0"
             )}
             style={{
               bottom: `${topPosition}%`,
-              left: `${leftPosition}px`,
+              left: `${leftPercent}%`,
+              width: `${isBlack ? blackKeyWidth : whiteKeyWidth}%`,
+              transform: isBlack ? "translateX(-50%)" : undefined,
               height: `${Math.max(20, note.duration * 50)}px`,
               boxShadow: note.active ? "0 0 10px currentColor" : "none",
             }}
