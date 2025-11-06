@@ -1,4 +1,6 @@
 import argparse
+import tkinter as tk
+from tkinter import messagebox, ttk
 from typing import List, Optional
 
 from src.infrastructure.adapters.serial.serial_communicator import SerialCommunicator
@@ -50,8 +52,47 @@ class SystemInitializer:
             )
             return None
 
-        chosen = available[0]
-        self._logger.warning(
-            f"Nenhuma porta informada. Usando automaticamente {chosen}."
-        )
+        return self._show_port_selection(available)
+
+    def _show_port_selection(self, ports: List[str]) -> Optional[str]:
+        root = tk.Tk()
+        root.title("Selecionar porta serial")
+        root.geometry("320x120")
+        root.resizable(False, False)
+
+        selected: dict[str, Optional[str]] = {"value": None}
+
+        ttk.Label(root, text="Escolha a porta serial:").pack(pady=(15, 5))
+
+        combo = ttk.Combobox(root, values=ports, state="readonly")
+        combo.pack(pady=5)
+
+        if ports:
+            combo.current(0)
+
+        def confirm_selection() -> None:
+            value = combo.get()
+            if not value:
+                messagebox.showwarning(
+                    "Seleção inválida", "Selecione uma porta antes de continuar."
+                )
+                return
+            selected["value"] = value
+            root.destroy()
+
+        def on_close() -> None:
+            root.destroy()
+
+        root.protocol("WM_DELETE_WINDOW", on_close)
+
+        ttk.Button(root, text="Confirmar", command=confirm_selection).pack(pady=(5, 15))
+
+        root.mainloop()
+
+        chosen = selected["value"]
+        if not chosen:
+            self._logger.error("Nenhuma porta selecionada. Encerrando aplicação.")
+            return None
+
+        self._logger.info(f"Porta {chosen} selecionada manualmente.")
         return chosen
