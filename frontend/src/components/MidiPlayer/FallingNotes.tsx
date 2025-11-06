@@ -23,7 +23,7 @@ export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotes
     .map((_, index) => index)
     .filter((index) => !isBlackKey(index)).length;
   const whiteKeyWidth = 100 / whiteKeyCount;
-  const blackKeyWidth = whiteKeyWidth * 0.75;
+  const blackKeyWidth = whiteKeyWidth * 0.9;
 
   return (
     <div className="relative w-full max-w-5xl mx-auto h-64 bg-gradient-to-b from-background/50 to-transparent overflow-hidden border-b-4 border-primary">
