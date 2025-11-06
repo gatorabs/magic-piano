@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MidiFile, useMidiFiles } from "@/hooks/useMidiFiles";
 import { usePlayers } from "@/hooks/usePlayers";
@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Music, Play, Loader2, AlertCircle, Trophy } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
 
 const MidiSelection = () => {
@@ -22,6 +23,7 @@ const MidiSelection = () => {
   } = usePlayers();
   const [playerName, setPlayerName] = useState("");
   const [selectedMidi, setSelectedMidi] = useState<MidiFile | null>(null);
+  const [openSongs, setOpenSongs] = useState<string[]>([]);
 
   const songRankings = useMemo(() => {
     if (!playersData?.players?.length) {
@@ -77,6 +79,20 @@ const MidiSelection = () => {
   }, [playersData]);
 
   const hasRankingData = songRankings.length > 0;
+
+  useEffect(() => {
+    if (!songRankings.length) {
+      setOpenSongs([]);
+      return;
+    }
+
+    setOpenSongs((prev) => {
+      const visibleTitles = songRankings.map((ranking) => ranking.title);
+      const preserved = prev.filter((title) => visibleTitles.includes(title));
+      const newTitles = visibleTitles.filter((title) => !preserved.includes(title));
+      return [...preserved, ...newTitles];
+    });
+  }, [songRankings]);
 
   const handleStart = () => {
     if (!playerName.trim()) {
@@ -186,34 +202,40 @@ const MidiSelection = () => {
             )}
 
             {!isLoading && !isError && midiFiles.length > 0 && (
-              <div className="grid gap-2">
-                {midiFiles.map((file) => (
-                  <button
-                    key={file.filename}
-                    onClick={() => setSelectedMidi(file)}
-                    className={`p-4 rounded-lg border text-left transition-all hover:shadow-md ${
-                      selectedMidi?.filename === file.filename
-                        ? "border-primary bg-primary/10 shadow-lg"
-                        : "border-border hover:border-primary/50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded ${
-                        selectedMidi?.filename === file.filename
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-secondary"
-                      }`}>
-                        <Music className="h-4 w-4" />
+              <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2">
+                {midiFiles.map((file) => {
+                  const isSelected = selectedMidi?.filename === file.filename;
+
+                  return (
+                    <button
+                      key={file.filename}
+                      onClick={() => setSelectedMidi(file)}
+                      className={`flex h-full flex-col gap-3 rounded-lg border p-4 text-left transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
+                        isSelected
+                          ? "border-primary bg-primary/10 shadow-lg"
+                          : "border-border hover:border-primary/50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`rounded p-2 ${
+                            isSelected
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-secondary"
+                          }`}
+                        >
+                          <Music className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium leading-tight">{file.name}</p>
+                        </div>
+                        {isSelected && (
+                          <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                        )}
                       </div>
-                      <div className="flex-1">
-                        <p className="font-medium">{file.name}</p>
-                      </div>
-                      {selectedMidi?.filename === file.filename && (
-                        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                      )}
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -247,18 +269,24 @@ const MidiSelection = () => {
               )}
 
               {!isPlayersLoading && !isPlayersError && hasRankingData && (
-                <div className="space-y-6">
+                <Accordion
+                  type="multiple"
+                  value={openSongs}
+                  onValueChange={(value) => setOpenSongs(value as string[])}
+                  className="space-y-4"
+                >
                   {songRankings.map((ranking) => {
                     const topEntries = ranking.entries.slice(0, 5);
 
                     return (
-                      <div
+                      <AccordionItem
                         key={ranking.title}
-                        className="rounded-lg border bg-background/60 shadow-sm"
+                        value={ranking.title}
+                        className="overflow-hidden rounded-lg border bg-background/60 shadow-sm"
                       >
-                        <div className="border-b px-4 py-3">
-                          <div className="flex items-center justify-between gap-4">
-                            <h4 className="text-base font-semibold">{ranking.title}</h4>
+                        <AccordionTrigger className="px-4">
+                          <div className="flex w-full items-center justify-between gap-4">
+                            <span className="text-base font-semibold">{ranking.title}</span>
                             <span className="text-sm text-muted-foreground">
                               Melhor pontuação:
                               <span className="ml-1 font-medium text-primary">
@@ -266,9 +294,8 @@ const MidiSelection = () => {
                               </span>
                             </span>
                           </div>
-                        </div>
-
-                        <div className="px-4 py-3">
+                        </AccordionTrigger>
+                        <AccordionContent className="px-4">
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -294,11 +321,11 @@ const MidiSelection = () => {
                               ))}
                             </TableBody>
                           </Table>
-                        </div>
-                      </div>
+                        </AccordionContent>
+                      </AccordionItem>
                     );
                   })}
-                </div>
+                </Accordion>
               )}
             </div>
           </CardContent>
