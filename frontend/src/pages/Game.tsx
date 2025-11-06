@@ -53,6 +53,8 @@ const Game = () => {
   const [songTitle, setSongTitle] = useState("");
   const [gameSessionId, setGameSessionId] = useState(0);
 
+  const displayedSongTitle = songTitle || fileName || "Música";
+
   useEffect(() => {
     const loadMidi = async () => {
       const storedName = sessionStorage.getItem("playerName");
@@ -246,7 +248,7 @@ const Game = () => {
               <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-[hsl(var(--note-falling))] bg-clip-text text-transparent">
                 Piano Hero
               </h1>
-              <p className="text-sm text-muted-foreground">{fileName}</p>
+              <p className="text-sm text-muted-foreground">{displayedSongTitle}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 px-4 py-2 bg-card rounded-lg border shadow-sm">
@@ -260,7 +262,9 @@ const Game = () => {
             <span className="font-medium text-primary">
               {formatTime(currentTime)}
             </span>
-            <span className="uppercase tracking-wide">Progresso da música</span>
+            <span className="flex-1 min-w-0 truncate px-4 text-center font-medium text-muted-foreground">
+              {displayedSongTitle}
+            </span>
             <span className="font-medium text-muted-foreground">
               {formatTime(totalDuration)}
             </span>
