@@ -8,6 +8,9 @@ interface GameControllerProps {
   pressedKeys: KeyState[];
   onGameStateChange: (gameNotes: GameNote[], currentTime: number) => void;
   onScoreChange: (score: number, combo: number) => void;
+  onPlay?: (startTime: number) => void | Promise<void>;
+  onPause?: () => void | Promise<void>;
+  onReset?: () => void | Promise<void>;
 }
 
 const HIT_WINDOW = 0.15; // 150ms window for hitting notes
@@ -17,6 +20,9 @@ export const GameController = ({
   pressedKeys,
   onGameStateChange,
   onScoreChange,
+  onPlay,
+  onPause,
+  onReset,
 }: GameControllerProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -109,11 +115,13 @@ export const GameController = ({
   const handlePlay = useCallback(() => {
     setIsPlaying(true);
     setStartTime(Date.now() - currentTime * 1000);
-  }, [currentTime]);
+    onPlay?.(currentTime);
+  }, [currentTime, onPlay]);
 
   const handlePause = useCallback(() => {
     setIsPlaying(false);
-  }, []);
+    onPause?.();
+  }, [onPause]);
 
   const handleReset = useCallback(() => {
     setIsPlaying(false);
@@ -129,7 +137,8 @@ export const GameController = ({
         missed: false,
       }))
     );
-  }, []);
+    onReset?.();
+  }, [onReset]);
 
   return (
     <div className="flex items-center gap-4">

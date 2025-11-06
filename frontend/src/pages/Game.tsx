@@ -5,6 +5,7 @@ import { FallingNotes } from "@/components/MidiPlayer/FallingNotes";
 import { GameController } from "@/components/MidiPlayer/GameController";
 import { usePianoKeys } from "@/hooks/usePianoKeys";
 import { useMidiParser } from "@/hooks/useMidiParser";
+import { useMidiAudio } from "@/hooks/useMidiAudio";
 import { fetchMidiFile } from "@/hooks/useMidiFiles";
 import { GameNote } from "@/types/midi";
 import { toast } from "sonner";
@@ -27,6 +28,7 @@ const Game = () => {
   const navigate = useNavigate();
   const { data: keys = [], isError } = usePianoKeys();
   const { notes, fileName, parseMidiFile, clearMidi } = useMidiParser();
+  const { loadNotes: loadAudioNotes, playFrom, pause, stop } = useMidiAudio();
   const [playerName, setPlayerName] = useState("");
   const [isLoadingMidi, setIsLoadingMidi] = useState(true);
   const [gameNotes, setGameNotes] = useState<GameNote[]>([]);
@@ -63,6 +65,19 @@ const Game = () => {
 
     loadMidi();
   }, [navigate, parseMidiFile]);
+
+  useEffect(() => {
+    if (notes.length > 0) {
+      stop();
+      loadAudioNotes(notes);
+    }
+  }, [notes, loadAudioNotes, stop]);
+
+  useEffect(() => {
+    return () => {
+      stop();
+    };
+  }, [stop]);
 
   const totalDuration = useMemo(() => {
     if (notes.length === 0) {
@@ -191,6 +206,9 @@ const Game = () => {
               pressedKeys={keys}
               onGameStateChange={handleGameStateChange}
               onScoreChange={handleScoreChange}
+              onPlay={playFrom}
+              onPause={pause}
+              onReset={stop}
             />
           )}
 
