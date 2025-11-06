@@ -32,6 +32,8 @@ export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotes
   return (
     <div className="relative w-full max-w-5xl mx-auto h-64 bg-gradient-to-b from-background/50 to-transparent overflow-hidden border-b-4 border-primary">
       {visibleNotes.map((note) => {
+        const noteEndTime = note.time + note.duration;
+
         // Calculate vertical position (0 = bottom, 1 = top)
         const timeUntilNote = note.time - currentTime;
         const clampedTimeUntil = Math.min(
@@ -39,6 +41,18 @@ export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotes
           safeLookAhead
         );
         const bottomPosition = (clampedTimeUntil / safeLookAhead) * 100;
+
+        const baseHeight = Math.max(20, note.duration * 50);
+        let heightPx = baseHeight;
+
+        if (currentTime >= note.time) {
+          const remainingDuration = Math.max(noteEndTime - currentTime, 0);
+
+          heightPx =
+            remainingDuration > 0
+              ? Math.max(4, Math.min(baseHeight, remainingDuration * 50))
+              : 0;
+        }
 
         // Calculate horizontal position based on MIDI note
         const keyId = note.midi % totalKeys; // Assuming 48 keys
@@ -65,7 +79,7 @@ export const FallingNotes = ({ notes, currentTime, lookAheadTime }: FallingNotes
               left: `${leftPercent}%`,
               width: `${(isBlack ? BLACK_KEY_WIDTH_RATIO : 1) * whiteKeyWidth}%`,
               transform: isBlack ? "translateX(-50%)" : undefined,
-              height: `${Math.max(20, note.duration * 50)}px`,
+              height: `${heightPx}px`,
               boxShadow: note.active ? "0 0 10px currentColor" : "none",
             }}
           />
