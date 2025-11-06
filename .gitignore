@@ -2,3 +2,4 @@
 __pycache__/
 *.py[cod]
 src/infrastructure/adapters/web_server/storage/
+frontend/node_modules

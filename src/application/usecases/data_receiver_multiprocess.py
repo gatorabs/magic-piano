@@ -94,8 +94,8 @@ def data_receiver_process(shared_controls, frames_dict):
                 continue
 
             port_name, bit = key_to_port_bit(key_id)
-            logger.info(f"{'DOWN' if pressed else 'UP  '} "
-                        f"key={key_id:02d} (P{port_name}{bit})")
+            #logger.info(f"{'DOWN' if pressed else 'UP  '} "
+                       # f"key={key_id:02d} (P{port_name}{bit})")
 
             frames_dict[key_id] = bool(pressed)
 
