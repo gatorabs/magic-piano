@@ -13,7 +13,11 @@ static const uint8_t PORT_MASKS[6] = {
   MASK_A, MASK_B, MASK_C, MASK_D, MASK_E, MASK_F
 };
 
+static const char PORT_NAMES[6] = {'A', 'B', 'C', 'D', 'E', 'F'};
+
 static uint8_t prev_state[6] = {0, 0, 0, 0, 0, 0};
+static bool debug_text = false;
+static uint32_t last_snapshot_ms = 0;
 
 static inline uint8_t read_port(uint8_t idx) {
   switch (idx) {
@@ -29,6 +33,67 @@ static inline uint8_t read_port(uint8_t idx) {
 static void send_snapshot(const uint8_t *ports) {
   Serial.write(SNAPSHOT_MARKER);
   Serial.write(ports, 6);
+}
+
+static void print_state_text(const uint8_t *ports) {
+  Serial.print(F("[debug] Estado:"));
+  for (uint8_t p = 0; p < 6; ++p) {
+    Serial.print(' ');
+    Serial.print('P');
+    Serial.print(PORT_NAMES[p]);
+    Serial.print('=');
+    for (int8_t bit = 7; bit >= 0; --bit) {
+      Serial.print((ports[p] >> bit) & 1);
+    }
+  }
+  Serial.println();
+}
+
+static void print_mapping_table() {
+  Serial.println();
+  Serial.println(F("[debug] Mapa de teclas (indice -> porta.bit)"));
+  for (uint8_t p = 0; p < 6; ++p) {
+    for (uint8_t bit = 0; bit < 8; ++bit) {
+      if (!(PORT_MASKS[p] & (1 << bit))) {
+        continue;
+      }
+
+      uint8_t key = (p * 8) + bit;
+      Serial.print(F("  "));
+      if (key < 10) {
+        Serial.print('0');
+      }
+      Serial.print(key);
+      Serial.print(F(" -> P"));
+      Serial.print(PORT_NAMES[p]);
+      Serial.print('.');
+      Serial.print(bit);
+      Serial.println();
+    }
+  }
+  Serial.println();
+}
+
+static void handle_serial_commands() {
+  while (Serial.available()) {
+    int incoming = Serial.read();
+    if (incoming == 'd' || incoming == 'D') {
+      debug_text = !debug_text;
+      if (debug_text) {
+        Serial.println();
+        Serial.println(F("[debug] Modo texto ativado. Eventos binarios pausados."));
+        Serial.println(F("[debug] Use '?' para ver a tabela de mapeamento."));
+        print_state_text(prev_state);
+      } else {
+        Serial.println();
+        Serial.println(F("[debug] Modo texto desativado. Retomando protocolo binario."));
+        send_snapshot(prev_state);
+        last_snapshot_ms = millis();
+      }
+    } else if (incoming == '?' || incoming == 'm' || incoming == 'M') {
+      print_mapping_table();
+    }
+  }
 }
 
 void setup() {
@@ -54,10 +119,11 @@ void setup() {
     prev_state[p] = initial[p];
   }
   send_snapshot(initial);
+  last_snapshot_ms = millis();
 }
 
 void loop() {
-  static uint32_t last_snapshot_ms = 0;
+  handle_serial_commands();
 
   uint8_t cur[6];
   for (uint8_t p = 0; p < 6; ++p) {
@@ -74,18 +140,35 @@ void loop() {
 
       uint8_t key   = (p * 8) + bit;
       uint8_t state = (cur[p] >> bit) & 1; // 1=pressionada, 0=solta
-      uint8_t evt   = (state << 7) | (key & 0x3F);
-      Serial.write(&evt, 1);
+      if (debug_text) {
+        Serial.print(F("[debug] Tecla "));
+        Serial.print(key);
+        Serial.print(state ? F(" pressionada ") : F(" solta "));
+        Serial.print(F("(P"));
+        Serial.print(PORT_NAMES[p]);
+        Serial.print('.');
+        Serial.print(bit);
+        Serial.println(')');
+      } else {
+        uint8_t evt = (state << 7) | (key & 0x3F);
+        Serial.write(&evt, 1);
+      }
       changed_any = true;
     }
     prev_state[p] = cur[p];
   }
 
   // Envia snapshots periódicos para manter a aplicação sincronizada.
-  uint32_t now = millis();
-  if (changed_any || (now - last_snapshot_ms) > 500) {
-    send_snapshot(cur);
-    last_snapshot_ms = now;
+  if (debug_text) {
+    if (changed_any) {
+      print_state_text(cur);
+    }
+  } else {
+    uint32_t now = millis();
+    if (changed_any || (now - last_snapshot_ms) > 500) {
+      send_snapshot(cur);
+      last_snapshot_ms = now;
+    }
   }
 
   delay(2); // reduz ruído/bounce sem aumentar a latência perceptível
