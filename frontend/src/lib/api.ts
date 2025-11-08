@@ -44,6 +44,74 @@ export class ApiError extends Error {
   }
 }
 
+export interface HighlightCommandPayload {
+  keyId?: number;
+  delayMs?: number;
+  activateAt?: number;
+  clear?: boolean;
+}
+
+export interface HighlightCommandResponse {
+  scheduled_key: number;
+  activate_at: number | null;
+}
+
+export const sendHighlightCommand = async (
+  payload: HighlightCommandPayload
+): Promise<HighlightCommandResponse> => {
+  if (!payload.clear && typeof payload.keyId !== "number") {
+    throw new ApiError(
+      "É necessário informar 'keyId' ou definir 'clear' para enviar o comando de destaque."
+    );
+  }
+
+  const body: Record<string, unknown> = {};
+
+  if (payload.clear) {
+    body.clear = true;
+  }
+
+  if (typeof payload.keyId === "number") {
+    body.key_id = Math.trunc(payload.keyId);
+  }
+
+  if (typeof payload.delayMs === "number") {
+    const delay = Math.trunc(payload.delayMs);
+    if (delay >= 0) {
+      body.delay_ms = delay;
+    }
+  }
+
+  if (typeof payload.activateAt === "number") {
+    body.activate_at = payload.activateAt;
+  }
+
+  const response = await fetch(`${BACKEND_URL}/api/game/highlight`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    let message = "Não foi possível agendar o destaque da tecla.";
+
+    try {
+      const data = await response.json();
+      if (data?.error && typeof data.error === "string") {
+        message = data.error;
+      }
+    } catch (error) {
+      // Ignorado: mantém a mensagem padrão se não conseguir ler a resposta.
+    }
+
+    throw new ApiError(message, response.status);
+  }
+
+  return response.json();
+};
+
 export const createPlayer = async (
   payload: CreatePlayerRequest
 ): Promise<CreatePlayerResponse> => {

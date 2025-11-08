@@ -12,6 +12,9 @@ interface GameControllerProps {
   onPause?: () => void | Promise<void>;
   onReset?: () => void | Promise<void>;
   onSongComplete?: (params: { score: number; maxCombo: number }) => void;
+  onPlaybackStart?: () => void;
+  onPlaybackPause?: () => void;
+  onPlaybackReset?: () => void;
 }
 
 const HIT_WINDOW = 0.15; // 150ms window for hitting notes
@@ -25,6 +28,9 @@ export const GameController = ({
   onPause,
   onReset,
   onSongComplete,
+  onPlaybackStart,
+  onPlaybackPause,
+  onPlaybackReset,
 }: GameControllerProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -42,7 +48,8 @@ export const GameController = ({
     setStartTime(Date.now() - currentTime * 1000);
     setHasCompleted(false);
     onPlay?.(currentTime);
-  }, [currentTime, onPlay]);
+    onPlaybackStart?.();
+  }, [currentTime, onPlay, onPlaybackStart]);
 
   // Initialize game notes from MIDI
   useEffect(() => {
@@ -167,7 +174,8 @@ export const GameController = ({
     setCountdown(null);
     setIsPlaying(false);
     onPause?.();
-  }, [onPause]);
+    onPlaybackPause?.();
+  }, [onPause, onPlaybackPause]);
 
   const handleReset = useCallback(() => {
     setIsCountdownActive(false);
@@ -188,7 +196,8 @@ export const GameController = ({
     );
     setHasCompleted(false);
     onReset?.();
-  }, [onReset]);
+    onPlaybackReset?.();
+  }, [onReset, onPlaybackReset]);
 
   useEffect(() => {
     if (!isCountdownActive || countdown === null) {

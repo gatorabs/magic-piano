@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Piano } from "@/components/Piano/Piano";
 import { FallingNotes } from "@/components/MidiPlayer/FallingNotes";
@@ -31,8 +31,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { createPlayer } from "@/lib/api";
+import {
+  createPlayer,
+  sendHighlightCommand,
+  type HighlightCommandPayload,
+} from "@/lib/api";
 import { BACKEND_URL } from "@/config/backend";
+
+const HIGHLIGHT_LOOKAHEAD_SECONDS = 0.5;
+const HIGHLIGHT_PAST_TOLERANCE_SECONDS = 0.1;
 
 const Game = () => {
   const navigate = useNavigate();
@@ -52,8 +59,87 @@ const Game = () => {
   const [isSavingPlayer, setIsSavingPlayer] = useState(false);
   const [songTitle, setSongTitle] = useState("");
   const [gameSessionId, setGameSessionId] = useState(0);
+  const scheduledNoteIdsRef = useRef<Set<string>>(new Set());
 
   const displayedSongTitle = songTitle || fileName || "Música";
+
+  const resetHighlightScheduling = useCallback(() => {
+    scheduledNoteIdsRef.current.clear();
+  }, []);
+
+  const sendHighlight = useCallback(
+    async (payload: HighlightCommandPayload) => {
+      try {
+        await sendHighlightCommand(payload);
+      } catch (error) {
+        console.error("Falha ao enviar comando de destaque da tecla:", error);
+        throw error;
+      }
+    },
+    []
+  );
+
+  const clearAllHighlights = useCallback(() => {
+    void sendHighlight({ clear: true }).catch(() => {
+      // O erro já foi registrado em sendHighlight; ignoramos para não interromper o fluxo.
+    });
+  }, [sendHighlight]);
+
+  const scheduleUpcomingHighlights = useCallback(
+    (incomingNotes: GameNote[], time: number) => {
+      if (incomingNotes.length === 0) {
+        return;
+      }
+
+      const scheduledIds = scheduledNoteIdsRef.current;
+      const upcoming = incomingNotes
+        .filter(
+          (note) =>
+            note.active &&
+            !note.hit &&
+            !note.missed &&
+            !scheduledIds.has(note.id)
+        )
+        .sort((a, b) => a.time - b.time);
+
+      for (const note of upcoming) {
+        const timeUntil = note.time - time;
+
+        if (timeUntil < -HIGHLIGHT_PAST_TOLERANCE_SECONDS) {
+          scheduledIds.add(note.id);
+          continue;
+        }
+
+        if (timeUntil > HIGHLIGHT_LOOKAHEAD_SECONDS) {
+          break;
+        }
+
+        const normalizedKey = ((note.midi % 48) + 48) % 48;
+
+        scheduledIds.add(note.id);
+        void sendHighlight({ keyId: normalizedKey }).catch(() => {
+          scheduledIds.delete(note.id);
+        });
+        break;
+      }
+    },
+    [sendHighlight]
+  );
+
+  const handlePlaybackStart = useCallback(() => {
+    resetHighlightScheduling();
+    clearAllHighlights();
+  }, [clearAllHighlights, resetHighlightScheduling]);
+
+  const handlePlaybackPause = useCallback(() => {
+    resetHighlightScheduling();
+    clearAllHighlights();
+  }, [clearAllHighlights, resetHighlightScheduling]);
+
+  const handlePlaybackReset = useCallback(() => {
+    resetHighlightScheduling();
+    clearAllHighlights();
+  }, [clearAllHighlights, resetHighlightScheduling]);
 
   useEffect(() => {
     const loadMidi = async () => {
@@ -101,6 +187,11 @@ const Game = () => {
     };
   }, [stop]);
 
+  useEffect(() => {
+    resetHighlightScheduling();
+    clearAllHighlights();
+  }, [notes, gameSessionId, clearAllHighlights, resetHighlightScheduling]);
+
   const totalDuration = useMemo(() => {
     if (notes.length === 0) {
       return 0;
@@ -133,8 +224,9 @@ const Game = () => {
         const nextTime = Math.min(time, totalDuration || time);
         return nextTime === prevTime ? prevTime : nextTime;
       });
+      scheduleUpcomingHighlights(notes, time);
     },
-    [totalDuration]
+    [scheduleUpcomingHighlights, totalDuration]
   );
 
   const handleScoreChange = useCallback((newScore: number, newCombo: number) => {
@@ -144,6 +236,8 @@ const Game = () => {
 
   const handleSongComplete = useCallback(
     async ({ score: finalScoreValue, maxCombo }: { score: number; maxCombo: number }) => {
+      clearAllHighlights();
+      resetHighlightScheduling();
       setFinalScore(finalScoreValue);
       setFinalMaxCombo(maxCombo);
       setIsResultDialogOpen(true);
@@ -173,10 +267,12 @@ const Game = () => {
         setIsSavingPlayer(false);
       }
     },
-    [fileName, playerName, songTitle]
+    [clearAllHighlights, fileName, playerName, resetHighlightScheduling, songTitle]
   );
 
   const handleRepeatSong = useCallback(() => {
+    clearAllHighlights();
+    resetHighlightScheduling();
     setIsResultDialogOpen(false);
     setScore(0);
     setCombo(0);
@@ -184,14 +280,16 @@ const Game = () => {
     setGameNotes([]);
     stop();
     setGameSessionId((prev) => prev + 1);
-  }, [stop]);
+  }, [clearAllHighlights, resetHighlightScheduling, stop]);
 
   const handleStopPlaying = useCallback(() => {
+    clearAllHighlights();
+    resetHighlightScheduling();
     setIsResultDialogOpen(false);
     stop();
     clearMidi();
     navigate("/");
-  }, [clearMidi, navigate, stop]);
+  }, [clearAllHighlights, clearMidi, navigate, resetHighlightScheduling, stop]);
 
   const handleResultDialogChange = useCallback(
     (open: boolean) => {
@@ -296,6 +394,9 @@ const Game = () => {
               onPause={pause}
               onReset={stop}
               onSongComplete={handleSongComplete}
+              onPlaybackStart={handlePlaybackStart}
+              onPlaybackPause={handlePlaybackPause}
+              onPlaybackReset={handlePlaybackReset}
             />
           )}
 
