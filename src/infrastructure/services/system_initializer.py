@@ -18,8 +18,8 @@ class SystemInitializer:
         parser.add_argument(
             "--port",
             help=(
-                "Porta serial padrão a ser utilizada em ambos os fluxos "
-                "(ex.: COM4, /dev/ttyACM0)"
+                "Porta serial sugerida como ponto de partida para a seleção "
+                "das COMs de recepção e envio (ex.: COM4, /dev/ttyACM0)"
             ),
         )
         parser.add_argument(
@@ -30,7 +30,7 @@ class SystemInitializer:
         )
         parser.add_argument(
             "--receive-port",
-            help="Porta serial dedicada à recepção de dados",
+            help="Porta serial dedicada à recepção de dados (obrigatoriamente distinta da de envio)",
         )
         parser.add_argument(
             "--receive-baud",
@@ -39,7 +39,7 @@ class SystemInitializer:
         )
         parser.add_argument(
             "--send-port",
-            help="Porta serial dedicada ao envio de dados",
+            help="Porta serial dedicada ao envio de dados (obrigatoriamente distinta da de recepção)",
         )
         parser.add_argument(
             "--send-baud",

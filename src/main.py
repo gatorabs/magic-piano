@@ -1,6 +1,5 @@
 import sys
 from multiprocessing import Manager
-from typing import Optional
 
 from src.application.usecases.data_receiver_multiprocess import data_receiver_process
 from src.application.usecases.data_sender_multiprocess import data_sender_process
@@ -43,16 +42,19 @@ def main() -> int:
     if receiver_port is None:
         return 1
 
-    sender_port: Optional[str]
-    if args.send_port:
-        sender_port = system_initializer.choose_port(
-            args.send_port,
-            purpose="envio",
+    sender_port = system_initializer.choose_port(
+        args.send_port or default_port,
+        purpose="envio",
+    )
+    if sender_port is None:
+        return 1
+
+    if sender_port == receiver_port:
+        logger.error(
+            "As portas de envio e recepção devem ser diferentes. "
+            "Informe COMs distintas para cada microcontrolador."
         )
-        if sender_port is None:
-            return 1
-    else:
-        sender_port = receiver_port if receiver_port else None
+        return 1
 
     manager = Manager()
     shared_controls = manager.dict()
