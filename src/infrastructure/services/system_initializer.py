@@ -13,17 +13,38 @@ class SystemInitializer:
 
     def parse_args(self) -> argparse.Namespace:
         parser = argparse.ArgumentParser(
-            description="Magic Piano - processo de recepção serial"
+            description="Magic Piano - processos de comunicação serial"
         )
         parser.add_argument(
             "--port",
-            help="Porta serial a ser utilizada (ex.: COM4, /dev/ttyACM0)",
+            help=(
+                "Porta serial sugerida como ponto de partida para a seleção "
+                "das COMs de recepção e envio (ex.: COM4, /dev/ttyACM0)"
+            ),
         )
         parser.add_argument(
             "--baud",
             type=int,
             default=115_200,
-            help="Baud rate utilizado pelo microcontrolador (default: 115200)",
+            help="Baud rate padrão utilizado pelos microcontroladores (default: 115200)",
+        )
+        parser.add_argument(
+            "--receive-port",
+            help="Porta serial dedicada à recepção de dados (obrigatoriamente distinta da de envio)",
+        )
+        parser.add_argument(
+            "--receive-baud",
+            type=int,
+            help="Baud rate para a porta de recepção (default: herda de --baud)",
+        )
+        parser.add_argument(
+            "--send-port",
+            help="Porta serial dedicada ao envio de dados (obrigatoriamente distinta da de recepção)",
+        )
+        parser.add_argument(
+            "--send-baud",
+            type=int,
+            help="Baud rate para a porta de envio (default: herda de --baud)",
         )
         parser.add_argument(
             "--list",
@@ -35,7 +56,11 @@ class SystemInitializer:
     def list_ports(self) -> List[str]:
         return SerialCommunicator.list_available_ports()
 
-    def choose_port(self, requested_port: Optional[str]) -> Optional[str]:
+    def choose_port(
+        self,
+        requested_port: Optional[str],
+        purpose: str = "comunicação",
+    ) -> Optional[str]:
         available = self.list_ports()
 
         if requested_port:
@@ -52,17 +77,17 @@ class SystemInitializer:
             )
             return None
 
-        return self._show_port_selection(available)
+        return self._show_port_selection(available, purpose)
 
-    def _show_port_selection(self, ports: List[str]) -> Optional[str]:
+    def _show_port_selection(self, ports: List[str], purpose: str) -> Optional[str]:
         root = tk.Tk()
-        root.title("Selecionar porta serial")
+        root.title(f"Selecionar porta serial ({purpose})")
         root.geometry("320x120")
         root.resizable(False, False)
 
         selected: dict[str, Optional[str]] = {"value": None}
 
-        ttk.Label(root, text="Escolha a porta serial:").pack(pady=(15, 5))
+        ttk.Label(root, text=f"Escolha a porta serial para {purpose}:").pack(pady=(15, 5))
 
         combo = ttk.Combobox(root, values=ports, state="readonly")
         combo.pack(pady=5)
