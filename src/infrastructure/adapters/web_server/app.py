@@ -7,7 +7,7 @@ from flask import Flask
 from .routes import register_routes
 
 
-def create_app(frames_dict, controls_dict) -> Flask:
+def create_app(frames_dict, controls_dict, sender_queue) -> Flask:
     """Cria a aplicação Flask configurada com os estados compartilhados."""
 
     module_dir = Path(__file__).resolve().parent
@@ -27,14 +27,15 @@ def create_app(frames_dict, controls_dict) -> Flask:
         controls_dict,
         midi_storage_dir,
         players_storage_path,
+        sender_queue,
     )
     return app
 
 
-def start_flask_server(frames_dict, controls_dict) -> None:
+def start_flask_server(frames_dict, controls_dict, sender_queue) -> None:
     """Inicializa o servidor Flask expondo os estados das teclas."""
 
-    app = create_app(frames_dict, controls_dict)
+    app = create_app(frames_dict, controls_dict, sender_queue)
     app.run(
         host="0.0.0.0",
         port=5000,

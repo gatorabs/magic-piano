@@ -110,3 +110,31 @@ class SerialCommunicator:
             if self.logger:
                 self.logger.error(f"Erro no receive_loop: {e}")
         # Não fecha aqui; quem chamou decide quando fechar
+
+    def write(self, data: bytes) -> bool:
+        """Envia bytes pela porta serial aberta."""
+
+        if not self.is_open():
+            if self.logger:
+                self.logger.warning("Tentativa de escrita com porta fechada.")
+            return False
+
+        try:
+            written = self.serial_port.write(data)
+        except serial.SerialTimeoutException as exc:
+            if self.logger:
+                self.logger.error(f"Timeout ao enviar dados: {exc}")
+            return False
+        except serial.SerialException as exc:
+            if self.logger:
+                self.logger.error(f"Erro de escrita serial: {exc}")
+            return False
+
+        if written != len(data):
+            if self.logger:
+                self.logger.warning(
+                    f"Nem todos os bytes foram escritos ({written}/{len(data)})."
+                )
+            return False
+
+        return True

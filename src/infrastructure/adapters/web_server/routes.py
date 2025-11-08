@@ -2,13 +2,23 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import queue
 from typing import Any, Dict, Iterable, List, Tuple
 from uuid import uuid4
 
 from flask import Blueprint, jsonify, render_template, request, send_from_directory
 from werkzeug.utils import secure_filename
 
-from src.infrastructure.constants.controls_constants import RECEIVER_BAUD, RECEIVER_COM
+from src.infrastructure.constants.controls_constants import (
+    RECEIVER_BAUD,
+    RECEIVER_COM,
+    SENDER_COM,
+)
+from src.infrastructure.services.led_layout import (
+    LedSpan,
+    TOTAL_KEYS,
+    led_span_for_key,
+)
 
 
 def register_routes(
@@ -17,6 +27,7 @@ def register_routes(
     controls_dict,
     midi_storage_dir: Path,
     players_storage_path: Path,
+    sender_queue,
 ) -> None:
     """Registra rotas padrão para o monitoramento das teclas."""
 
@@ -29,6 +40,25 @@ def register_routes(
     def _sorted_key_ids() -> List[int]:
         keys: Iterable[Any] = frames_dict.keys()
         return sorted(int(key) for key in keys)
+
+    def _queue_command(payload: Dict[str, Any]) -> Tuple[bool, str]:
+        try:
+            sender_queue.put(payload, block=False)
+        except queue.Full:
+            return False, "Fila de comandos cheia. Tente novamente em instantes."
+        except Exception as exc:  # pragma: no cover - salvaguarda
+            return False, f"Falha ao enfileirar comando: {exc}"
+        return True, "Comando enfileirado com sucesso."
+
+    def _span_payload(span: LedSpan) -> Dict[str, Any]:
+        return {
+            "key_id": span.key_index,
+            "human_key": span.key_index + 1,
+            "start_led": span.start_led,
+            "end_led": span.end_led,
+            "led_count": span.count,
+            "led_indexes": span.to_indexes(),
+        }
 
     def _build_key_payload() -> List[Dict[str, Any]]:
         payload: List[Dict[str, Any]] = []
@@ -175,6 +205,56 @@ def register_routes(
     @web.route("/api/keys")
     def api_keys():
         return jsonify({"keys": _build_key_payload()})
+
+    @web.route("/api/leds/highlight", methods=["POST"])
+    def highlight_leds():
+        if not controls_dict.get(SENDER_COM):
+            return (
+                jsonify({"error": "Porta de envio serial não está configurada."}),
+                503,
+            )
+
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return jsonify({"error": "JSON inválido ou não fornecido."}), 400
+
+        key_raw = (
+            payload.get("key_id")
+            if payload.get("key_id") is not None
+            else payload.get("key")
+        )
+
+        try:
+            key_index = int(key_raw)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Campo 'key_id' deve ser um número inteiro."}), 400
+
+        if not 0 <= key_index < TOTAL_KEYS:
+            if 1 <= key_index <= TOTAL_KEYS:
+                key_index -= 1
+            else:
+                return (
+                    jsonify(
+                        {
+                            "error": (
+                                f"Índice de tecla fora do intervalo 1-{TOTAL_KEYS}."
+                            )
+                        }
+                    ),
+                    400,
+                )
+
+        try:
+            span = led_span_for_key(key_index)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        success, message = _queue_command({"key_id": span.key_index})
+        if not success:
+            return jsonify({"error": message}), 503
+
+        response_payload = _span_payload(span)
+        return jsonify({"message": message, "data": response_payload}), 202
 
     @web.after_request
     def add_cors_headers(response):
