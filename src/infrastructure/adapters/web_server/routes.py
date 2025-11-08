@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 from uuid import uuid4
@@ -8,7 +9,12 @@ from uuid import uuid4
 from flask import Blueprint, jsonify, render_template, request, send_from_directory
 from werkzeug.utils import secure_filename
 
-from src.infrastructure.constants.controls_constants import RECEIVER_BAUD, RECEIVER_COM
+from src.infrastructure.constants.controls_constants import (
+    RECEIVER_BAUD,
+    RECEIVER_COM,
+    SENDER_BAUD,
+    SENDER_COM,
+)
 
 
 def register_routes(
@@ -17,6 +23,7 @@ def register_routes(
     controls_dict,
     midi_storage_dir: Path,
     players_storage_path: Path,
+    send_queue,
 ) -> None:
     """Registra rotas padrão para o monitoramento das teclas."""
 
@@ -169,12 +176,66 @@ def register_routes(
             keys=_build_key_payload(),
             serial_port=controls_dict.get(RECEIVER_COM),
             serial_baud=controls_dict.get(RECEIVER_BAUD),
+            sender_port=controls_dict.get(SENDER_COM),
+            sender_baud=controls_dict.get(SENDER_BAUD),
             midi_files=_list_midi_files(),
         )
 
     @web.route("/api/keys")
     def api_keys():
         return jsonify({"keys": _build_key_payload()})
+
+    @web.route("/api/game/highlight", methods=["OPTIONS"])
+    def game_highlight_options():  # pragma: no cover - header-only route
+        return ("", 204)
+
+    @web.route("/api/game/highlight", methods=["POST"])
+    def schedule_highlight():
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return jsonify({"error": "JSON inválido ou não fornecido."}), 400
+
+        clear = bool(payload.get("clear"))
+        key_id = payload.get("key_id")
+
+        if clear:
+            key_value = 0
+        else:
+            if not isinstance(key_id, int):
+                return jsonify({"error": "Campo 'key_id' deve ser um inteiro."}), 400
+            if not 0 <= key_id < 48:
+                return jsonify({"error": "Campo 'key_id' deve estar entre 0 e 47."}), 400
+            key_value = key_id + 1  # Firmware espera teclas 1..48
+
+        activate_at = payload.get("activate_at")
+        delay_ms = payload.get("delay_ms")
+
+        target_time = None
+        if activate_at is not None:
+            try:
+                target_time = float(activate_at)
+            except (TypeError, ValueError):
+                return jsonify({"error": "Campo 'activate_at' deve ser numérico."}), 400
+        elif delay_ms is not None:
+            try:
+                delay_seconds = float(delay_ms) / 1000.0
+            except (TypeError, ValueError):
+                return jsonify({"error": "Campo 'delay_ms' deve ser numérico."}), 400
+            target_time = time.time() + delay_seconds
+
+        message = {
+            "command": "highlight",
+            "key": int(key_value),
+            "activate_at": target_time,
+        }
+
+        send_queue.put(message)
+
+        response_payload = {
+            "scheduled_key": int(key_value),
+            "activate_at": target_time,
+        }
+        return jsonify(response_payload), 202
 
     @web.after_request
     def add_cors_headers(response):

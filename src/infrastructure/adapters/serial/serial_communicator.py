@@ -86,6 +86,50 @@ class SerialCommunicator:
     def is_open(self) -> bool:
         return bool(self.serial_port and self.serial_port.is_open and self._opened)
 
+    def send_bytes(self, payload: bytes) -> bool:
+        """Envia bytes pela porta serial, abrindo-a sob demanda."""
+
+        if not payload:
+            return True
+
+        if not self.is_open():
+            if not self.com_port:
+                if self.logger:
+                    self.logger.error("Nenhuma porta configurada para envio de dados.")
+                return False
+            try:
+                self.start_com_port()
+            except Exception as exc:  # pragma: no cover - erro depende do SO/driver
+                if self.logger:
+                    self.logger.error(f"Não foi possível abrir {self.com_port}: {exc}")
+                return False
+
+        assert self.serial_port is not None  # para o mypy / linters
+
+        try:
+            written = self.serial_port.write(payload)
+            if written != len(payload) and self.logger:
+                self.logger.warning(
+                    f"Nem todos os bytes foram enviados ({written}/{len(payload)})."
+                )
+            self.serial_port.flush()
+            return True
+        except Exception as exc:  # pragma: no cover - depende do driver
+            if self.logger:
+                self.logger.error(f"Falha ao enviar dados: {exc}")
+            return False
+
+    def send_line(self, text: str) -> bool:
+        """Envia uma string ASCII finalizada com '\n'."""
+
+        try:
+            data = (text + "\n").encode("latin-1")
+        except UnicodeEncodeError:
+            if self.logger:
+                self.logger.error("Texto contém caracteres fora da faixa Latin-1.")
+            return False
+        return self.send_bytes(data)
+
     def receive_loop(self,
                      on_byte: Callable[[int], None],
                      should_stop: Optional[Callable[[], bool]] = None):
