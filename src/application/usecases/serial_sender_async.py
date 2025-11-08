@@ -42,8 +42,8 @@ def _build_payload(command: Dict[str, Any]) -> Optional[bytes]:
     except ValueError:
         return None
 
-    count = span.count
-    payload = f"HIGHLIGHT {key_index} {span.start_led} {count}\n"
+    human_index = span.key_index + 1
+    payload = f"{human_index}\n"
     return payload.encode("ascii", errors="ignore")
 
 

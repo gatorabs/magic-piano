@@ -6,23 +6,22 @@ from dataclasses import dataclass
 from typing import Iterable, List, Sequence
 
 TOTAL_KEYS = 48
-WHITE_LED_COUNT = 7
-BLACK_LED_COUNT = 5
 
-# Padrão de teclas de uma oitava (C a B), True = tecla branca, False = preta
-_WHITE_KEY_PATTERN: Sequence[bool] = (
-    True,   # C
-    False,  # C#
-    True,   # D
-    False,  # D#
-    True,   # E
-    True,   # F
-    False,  # F#
-    True,   # G
-    False,  # G#
-    True,   # A
-    False,  # A#
-    True,   # B
+# Comprimento dos LEDs por tecla em uma oitava, seguindo o mapeamento físico
+# informado pelo usuário. Os valores se repetem a cada 12 teclas.
+LED_LENGTH_PATTERN: Sequence[int] = (
+    8,  # tecla 1
+    6,  # tecla 2
+    8,  # tecla 3
+    5,  # tecla 4
+    8,  # tecla 5
+    8,  # tecla 6
+    5,  # tecla 7
+    8,  # tecla 8
+    5,  # tecla 9
+    8,  # tecla 10
+    5,  # tecla 11
+    8,  # tecla 12
 )
 
 
@@ -40,21 +39,9 @@ class LedSpan:
 
     def to_indexes(self) -> List[int]:
         return list(range(self.start_led, self.end_led + 1))
-
-
-def is_white_key(key_index: int) -> bool:
-    """Retorna se a tecla informada é branca (True) ou preta (False)."""
-
-    if key_index < 0:
-        raise ValueError("Índice de tecla não pode ser negativo.")
-    return _WHITE_KEY_PATTERN[key_index % len(_WHITE_KEY_PATTERN)]
-
-
 def led_span_for_key(
     key_index: int,
     total_keys: int = TOTAL_KEYS,
-    white_leds: int = WHITE_LED_COUNT,
-    black_leds: int = BLACK_LED_COUNT,
 ) -> LedSpan:
     """Calcula a faixa de LEDs correspondente a uma tecla."""
 
@@ -64,10 +51,11 @@ def led_span_for_key(
         )
 
     current_led = 0
+    pattern_length = len(LED_LENGTH_PATTERN)
     for idx in range(key_index):
-        current_led += white_leds if is_white_key(idx) else black_leds
+        current_led += LED_LENGTH_PATTERN[idx % pattern_length]
 
-    length = white_leds if is_white_key(key_index) else black_leds
+    length = LED_LENGTH_PATTERN[key_index % pattern_length]
     start_led = current_led
     end_led = start_led + length - 1
 
@@ -76,14 +64,12 @@ def led_span_for_key(
 
 def build_led_layout(
     total_keys: int = TOTAL_KEYS,
-    white_leds: int = WHITE_LED_COUNT,
-    black_leds: int = BLACK_LED_COUNT,
 ) -> List[LedSpan]:
     """Constrói a tabela completa de mapeamento de teclas para LEDs."""
 
     layout: List[LedSpan] = []
     for key_index in range(total_keys):
-        layout.append(led_span_for_key(key_index, total_keys, white_leds, black_leds))
+        layout.append(led_span_for_key(key_index, total_keys))
     return layout
 
 
